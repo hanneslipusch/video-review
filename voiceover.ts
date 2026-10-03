@@ -1,8 +1,24 @@
-import { writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, rename, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
 
 export const tts = { model: 'gemini-3.8-flash-tts', voice: 'Kore' };
+const style = 'Speak like a colleague walking someone through a short demo: warm, clear and natural.';
+
+// Cache location: https://specifications.freedesktop.org/basedir-spec/latest/
+export function cachedSpeech(text: string): string {
+  const hash = createHash('sha256').update(JSON.stringify([tts.model, tts.voice, style, text])).digest('hex');
+  return join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'video-review', 'speech', `${hash}.wav`);
+}
 
 export async function speak(text: string, path: string, key: string): Promise<void> {
+  const cached = cachedSpeech(text);
+  try {
+    return await copyFile(cached, path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
   // REST schema and WAV format: https://ai.google.dev/gemini-api/docs/speech-generation
   const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
     method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
@@ -10,7 +26,7 @@ export async function speak(text: string, path: string, key: string): Promise<vo
     body: JSON.stringify({
       model: tts.model,
       input: [{ type: 'user_input', content: [{ type: 'text', text,
-        annotations: [{ type: 'speech_metadata', style: 'Speak like a colleague walking someone through a short demo: warm, clear and natural.' }],
+        annotations: [{ type: 'speech_metadata', style }],
       }] }],
       response_format: { type: 'audio', mime_type: 'audio/wav' },
       generation_config: { speech_config: [{ voice: tts.voice }] },
@@ -34,5 +50,8 @@ export async function speak(text: string, path: string, key: string): Promise<vo
   const wav = Buffer.from(audio, 'base64');
   if (wav.toString('ascii', 0, 4) !== 'RIFF' || wav.toString('ascii', 8, 12) !== 'WAVE')
     throw new Error('Gemini TTS returned audio without the documented WAV header.');
-  await writeFile(path, wav);
+  await mkdir(dirname(cached), { recursive: true });
+  await writeFile(`${cached}.${process.pid}`, wav);
+  await rename(`${cached}.${process.pid}`, cached);
+  await copyFile(cached, path);
 }

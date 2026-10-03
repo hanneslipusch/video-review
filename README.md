@@ -8,7 +8,7 @@ This review shows a LibreChat bug before and after the fix. One command built it
 
 ## Install
 
-You need [Bun](https://bun.sh) and [FFmpeg](https://ffmpeg.org/download.html) with `ffprobe` and `libx264` on `PATH`.
+You need [Bun](https://bun.sh) and [FFmpeg](https://ffmpeg.org/download.html) with `ffprobe`, `libx264` and `libass` on `PATH`.
 
 In Claude Code, the plugin adds the skill and the `video-review` command:
 
@@ -58,11 +58,11 @@ Serve the `review` folder with a server that answers Range requests, or the play
 
 The page plays at 2.5×, and the rate button steps from 1× to 4×. Each step plays at recorded speed, then holds on its result while the caption shows. Hover a segment of the progress bar to see its chapter and a frame.
 
-The folder also holds `video.mp4` for chat or a pull request, `frames/` with one image per result, and `timeline.json` with source hashes and step times. The [Video.js 10](https://videojs.org/) player is bundled, with no CDN.
+The folder also holds `video.mp4` for chat, `frames/` with one image per result, and `timeline.json` with source hashes and step times. GitHub plays only videos uploaded in its editor, so embed `preview.gif` in a pull request: it plays the review at 2.5× with the captions, and can link to the page. The [Video.js 10](https://videojs.org/) player is bundled, with no CDN.
 
 ## Add a voiceover
 
-Pass `--voiceover` when people will listen rather than read. It needs `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey). Only the caption text goes to the [Gemini TTS API](https://ai.google.dev/gemini-api/docs/speech-generation), and every build calls it again.
+Pass `--voiceover` when people will listen rather than read. It needs `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey). Only the caption text goes to the [Gemini TTS API](https://ai.google.dev/gemini-api/docs/speech-generation). Each line's speech is cached in `~/.cache/video-review/speech`, or under `$XDG_CACHE_HOME`, so a rebuild requests only the lines that changed.
 
 On the page, the voice speeds up by the square root of the video speed, at most 1.8×. A result plays slower until the voice finishes, so the video never stops. `video.mp4` keeps the voice at normal speed.
 
