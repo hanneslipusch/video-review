@@ -1,0 +1,210 @@
+Video.js 10.0.0 declarations fail strict type-checking: https://github.com/videojs/v10/issues/2369
+Delete this patch when an @videojs/html release passes `tsc` without it.
+
+diff --git a/dist/dev/ui/airplay-button/element.d.ts b/dist/dev/ui/airplay-button/element.d.ts
+index 9e9ab3fdbba33ceba576c62ddc2d51e8b31fe9da..a415d07761dd7ed9d3c21791afa23e35a774fa7e 100644
+--- a/dist/dev/ui/airplay-button/element.d.ts
++++ b/dist/dev/ui/airplay-button/element.d.ts
+@@ -13,7 +13,7 @@ export declare class AirPlayButtonElement extends MediaButtonElement<AirPlayButt
+     readonly disabled: 'data-disabled';
+     readonly hidden: 'data-hidden';
+   };
+-  protected readonly mediaState: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly mediaState: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     remotePlaybackState: import("@videojs/media").RemotePlaybackConnectionState;
+     remotePlaybackAvailability: import("@videojs/media").MediaFeatureAvailability;
+     promptRemotePlayback: () => Promise<void>;
+diff --git a/dist/dev/ui/captions-button/element.d.ts b/dist/dev/ui/captions-button/element.d.ts
+index 5942e8722ca0bf38941546c7dfbc47b035668b6e..650b459ee72cbb9207801d3ec58a33a4d7c7250b 100644
+--- a/dist/dev/ui/captions-button/element.d.ts
++++ b/dist/dev/ui/captions-button/element.d.ts
+@@ -33,7 +33,7 @@ export declare class CaptionsButtonElement extends MediaButtonElement<CaptionsBu
+     readonly disabled: 'data-disabled';
+     readonly hidden: 'data-hidden';
+   };
+-  protected readonly mediaState: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly mediaState: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     textTrackList: import("@videojs/media").MediaTextTrack[];
+     subtitlesShowing: boolean;
+     toggleSubtitles: (forceShow?: boolean) => boolean;
+diff --git a/dist/dev/ui/cast-button/element.d.ts b/dist/dev/ui/cast-button/element.d.ts
+index 283700a8c1628bb9b2961c13dac16ef015873b41..5c5292fe0c0125e9f3765f5adcdf33df7a9dfca4 100644
+--- a/dist/dev/ui/cast-button/element.d.ts
++++ b/dist/dev/ui/cast-button/element.d.ts
+@@ -13,7 +13,7 @@ export declare class CastButtonElement extends MediaButtonElement<CastButtonStat
+     readonly disabled: 'data-disabled';
+     readonly hidden: 'data-hidden';
+   };
+-  protected readonly mediaState: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly mediaState: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     remotePlaybackState: import("@videojs/media").RemotePlaybackConnectionState;
+     remotePlaybackAvailability: import("@videojs/media").MediaFeatureAvailability;
+     promptRemotePlayback: () => Promise<void>;
+diff --git a/dist/dev/ui/fullscreen-button/element.d.ts b/dist/dev/ui/fullscreen-button/element.d.ts
+index be8a2fd0524c2716158ec4b18c2d391d53631a9a..d121d937057ccb27f24d5e48d2c478b809c79d3c 100644
+--- a/dist/dev/ui/fullscreen-button/element.d.ts
++++ b/dist/dev/ui/fullscreen-button/element.d.ts
+@@ -15,7 +15,7 @@ export declare class FullscreenButtonElement extends MediaButtonElement<Fullscre
+     readonly disabled: 'data-disabled';
+     readonly hidden: 'data-hidden';
+   };
+-  protected readonly mediaState: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly mediaState: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     isFullscreen: boolean;
+     fullscreenAvailability: import("@videojs/media").MediaFeatureAvailability;
+     requestFullscreen: () => Promise<void>;
+diff --git a/dist/dev/ui/input-indicator/element.d.ts b/dist/dev/ui/input-indicator/element.d.ts
+index 1e16bce88797116969ac0233606882613574daff..c0fbbd47de990d8760e275bfff303cca81daf632 100644
+--- a/dist/dev/ui/input-indicator/element.d.ts
++++ b/dist/dev/ui/input-indicator/element.d.ts
+@@ -27,7 +27,7 @@ export declare abstract class InputIndicatorElement<IndicatorState extends Indic
+   protected abstract get liveIndicator(): LiveIndicator<IndicatorState>;
+   protected get options(): InputIndicatorOptions;
+   protected abstract syncCoreProps(): void;
+-  protected readonly player: PlayerController<index_d_exports.AnyPlayerStore, index_d_exports.AnyPlayerStore>;
++  protected readonly player: PlayerController<import("@videojs/core/dom").AnyPlayerStore, import("@videojs/core/dom").AnyPlayerStore>;
+   /** @internal */
+   protected readonly container: ContextConsumer<import("@lit/context").Context<typeof CONTAINER_CONTEXT_KEY, ContainerContextValue>, this>;
+   connectedCallback(): void;
+diff --git a/dist/dev/ui/live-button/element.d.ts b/dist/dev/ui/live-button/element.d.ts
+index e1f91a63d070153189bb1d38e68d0106a94c3e81..a87a9a4d593d97ca7eac41a3abeb19a03997d444 100644
+--- a/dist/dev/ui/live-button/element.d.ts
++++ b/dist/dev/ui/live-button/element.d.ts
+@@ -21,17 +21,17 @@ export declare class LiveButtonElement extends UIElement {
+   label: Text | string;
+   /** @internal */
+   protected readonly core: LiveButtonCore;
+-  protected readonly live: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly live: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     liveEdgeStart: number;
+     targetLiveWindow: number;
+   } | undefined>;
+-  protected readonly time: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly time: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     currentTime: number;
+     duration: number;
+     seeking: boolean;
+     seek: (time: number) => Promise<number>;
+   } | undefined>;
+-  protected readonly buffer: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly buffer: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     buffered: [number, number][];
+     seekable: [number, number][];
+   } | undefined>;
+diff --git a/dist/dev/ui/mute-button/element.d.ts b/dist/dev/ui/mute-button/element.d.ts
+index 6261008f301b3d1e7ba0df2e997fb38e5ff694ba..dc7bebdafe8fd400d0a389d9aa6251a8302ac0c7 100644
+--- a/dist/dev/ui/mute-button/element.d.ts
++++ b/dist/dev/ui/mute-button/element.d.ts
+@@ -13,7 +13,7 @@ export declare class MuteButtonElement extends MediaButtonElement<MuteButtonStat
+     readonly availability: 'data-availability';
+     readonly hidden: 'data-hidden';
+   };
+-  protected readonly mediaState: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly mediaState: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     volume: number;
+     muted: boolean;
+     volumeAvailability: import("@videojs/media").MediaFeatureAvailability;
+diff --git a/dist/dev/ui/pip-button/element.d.ts b/dist/dev/ui/pip-button/element.d.ts
+index 8f86b5631b7a9febfef4fb9d8ae366984e1a2257..85963f5aaffbf9b455e2f22e78fadf10113edaa5 100644
+--- a/dist/dev/ui/pip-button/element.d.ts
++++ b/dist/dev/ui/pip-button/element.d.ts
+@@ -13,7 +13,7 @@ export declare class PiPButtonElement extends MediaButtonElement<PiPButtonState,
+     readonly disabled: 'data-disabled';
+     readonly hidden: 'data-hidden';
+   };
+-  protected readonly mediaState: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly mediaState: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     isPictureInPicture: boolean;
+     pictureInPictureAvailability: import("@videojs/media").MediaFeatureAvailability;
+     requestPictureInPicture: () => Promise<void>;
+diff --git a/dist/dev/ui/play-button/element.d.ts b/dist/dev/ui/play-button/element.d.ts
+index bba6bcc86d483f2b35ddf44289a048ca6934134b..b36f0db4b7e0a1fc86b31af25d86a4a35b35b7d2 100644
+--- a/dist/dev/ui/play-button/element.d.ts
++++ b/dist/dev/ui/play-button/element.d.ts
+@@ -12,7 +12,7 @@ export declare class PlayButtonElement extends MediaButtonElement<PlayButtonStat
+     readonly ended: 'data-ended';
+     readonly started: 'data-started';
+   };
+-  protected readonly mediaState: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly mediaState: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     paused: boolean;
+     ended: boolean;
+     started: boolean;
+diff --git a/dist/dev/ui/playback-rate-button/element.d.ts b/dist/dev/ui/playback-rate-button/element.d.ts
+index c39a3cc777c40257dc41ea1100757c37cb2ac338..c9e8eaf44fe101688f08782e242b5d43ef5f5a75 100644
+--- a/dist/dev/ui/playback-rate-button/element.d.ts
++++ b/dist/dev/ui/playback-rate-button/element.d.ts
+@@ -24,7 +24,7 @@ export declare class PlaybackRateButtonElement extends MediaButtonElement<Playba
+   protected readonly stateAttrMap: {
+     readonly rate: 'data-rate';
+   };
+-  protected readonly mediaState: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly mediaState: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     readonly playbackRates: readonly number[];
+     playbackRate: number;
+     setPlaybackRate: (rate: number) => void;
+diff --git a/dist/dev/ui/seek-button/element.d.ts b/dist/dev/ui/seek-button/element.d.ts
+index 650b071e09157028cd64c0056f2a8dde3a917118..e3abd7d0e90f7c8149b4c09c5182e52b6769fa66 100644
+--- a/dist/dev/ui/seek-button/element.d.ts
++++ b/dist/dev/ui/seek-button/element.d.ts
+@@ -14,7 +14,7 @@ export declare class SeekButtonElement extends MediaButtonElement<SeekButtonStat
+     readonly seeking: 'data-seeking';
+     readonly direction: 'data-direction';
+   };
+-  protected readonly mediaState: PlayerController<index_d_exports.AnyPlayerStore, {
++  protected readonly mediaState: PlayerController<import("@videojs/core/dom").AnyPlayerStore, {
+     currentTime: number;
+     duration: number;
+     seeking: boolean;
+diff --git a/dist/dev/ui/seek-indicator/element.d.ts b/dist/dev/ui/seek-indicator/element.d.ts
+index 33e0c699f1fffa978da4d454bb91c14a506b00c6..e905f39aa766e16ad73cb289dcdc22993add364c 100644
+--- a/dist/dev/ui/seek-indicator/element.d.ts
++++ b/dist/dev/ui/seek-indicator/element.d.ts
+@@ -14,7 +14,7 @@ export declare class SeekIndicatorElement extends InputIndicatorElement<SeekIndi
+   };
+   closeDelay: number | undefined;
+   protected get core(): SeekIndicatorCore;
+-  protected get transition(): index_d_exports.TransitionApi;
++  protected get transition(): import("@videojs/core/dom").TransitionApi;
+   protected get liveIndicator(): LiveIndicator<SeekIndicatorState>;
+   protected syncCoreProps(): void;
+ }
+diff --git a/dist/dev/ui/status-indicator/element.d.ts b/dist/dev/ui/status-indicator/element.d.ts
+index dad1ce140cd5320dd6260e635a7aec20af6cb897..f6cd27bee64a0acc65dfa416363719bc7bb8a3af 100644
+--- a/dist/dev/ui/status-indicator/element.d.ts
++++ b/dist/dev/ui/status-indicator/element.d.ts
+@@ -24,7 +24,7 @@ export declare class StatusIndicatorElement extends InputIndicatorElement<Status
+   get deriveCustomStatus(): DeriveCustomStatus | undefined;
+   set deriveCustomStatus(value: DeriveCustomStatus | undefined);
+   protected get core(): StatusIndicatorCore;
+-  protected get transition(): index_d_exports.TransitionApi;
++  protected get transition(): import("@videojs/core/dom").TransitionApi;
+   protected get liveIndicator(): LiveIndicator<StatusIndicatorState>;
+   protected get options(): {
+     replayOnUpdate: false;
+diff --git a/dist/dev/ui/thumbnail/element.d.ts b/dist/dev/ui/thumbnail/element.d.ts
+index 40d0750a28d7f041199161848ce54dab8c13a130..4179e7e15e8506434a69709da3b8236ebc3aca62 100644
+--- a/dist/dev/ui/thumbnail/element.d.ts
++++ b/dist/dev/ui/thumbnail/element.d.ts
+@@ -13,7 +13,7 @@ import { PropertyValues } from "@videojs/element";
+  */
+ export declare class ThumbnailElement extends UIElement {
+   #private;
+-  static readonly tagName = "media-thumbnail";
++  static readonly tagName: string;
+   static properties: {
+     time: {
+       type: NumberConstructor;
+diff --git a/dist/dev/ui/volume-indicator/element.d.ts b/dist/dev/ui/volume-indicator/element.d.ts
+index d899ddc7970c1b6968cb760311a427feb8e0b94c..abfa514221ac958f9e8c06716d81a340b0a05179 100644
+--- a/dist/dev/ui/volume-indicator/element.d.ts
++++ b/dist/dev/ui/volume-indicator/element.d.ts
+@@ -14,7 +14,7 @@ export declare class VolumeIndicatorElement extends InputIndicatorElement<Volume
+   };
+   closeDelay: number | undefined;
+   protected get core(): VolumeIndicatorCore;
+-  protected get transition(): index_d_exports.TransitionApi;
++  protected get transition(): import("@videojs/core/dom").TransitionApi;
+   protected get liveIndicator(): LiveIndicator<VolumeIndicatorState>;
+   protected get options(): {
+     replayOnUpdate: false;

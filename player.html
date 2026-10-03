@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="script-src 'self'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light">
+<title>{{TITLE}} · Video review</title>
+<link rel="stylesheet" href="vendor/skin.css">
+<style>
+:root{font-family:system-ui,sans-serif;color:#20302a;background:#f7f8f6;color-scheme:light}
+*{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:auto;padding:40px 24px}
+h1{font-size:clamp(22px,3vw,34px);font-weight:600;letter-spacing:-.02em;margin:0 0 16px}
+p,details,.notes li{color:#5c6a60;font-size:14px;line-height:1.5;margin:0 0 16px}.notes li{margin:0}.notes ul,.notes ol{margin:0 0 16px;padding-left:20px}a{color:#2f5a44}
+.media-skin{--media-border-radius:12px;--media-controls-gradient:linear-gradient(to top,rgb(0 0 0/.62),rgb(0 0 0/.3) 60px,transparent 128px);background:#e9ece8}
+.media-skin .media-slider-preview{--media-slider-preview-max-width:min(288px,100cqi)}
+.media-skin video::cue{font-size:clamp(15px,2.2vw,24px);line-height:1.35;color:#fff;background:rgb(16 24 20/.82)}
+.media-skin .media-time-slider-preview-content{padding:2px 8px;border-radius:6px;background:rgb(16 24 20/.82)}
+.media-skin:has(media-time-slider[data-pointing]) video::cue{visibility:hidden}
+.review-rate{width:auto;min-width:3.4em;padding-inline:.5em;font-weight:600;font-variant-numeric:tabular-nums}
+.review-rate::after{content:attr(data-rate) "×"}
+summary{cursor:pointer;width:max-content}kbd{font:12px ui-monospace,monospace;padding:1px 5px;border:1px solid #d5dbd5;border-radius:4px;background:#fff}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:10px 0 0}dd{margin:0}
+@media(pointer:coarse){details{display:none}}
+@media(max-width:600px){main{padding:20px 0}main>:not(video-player){margin-inline:14px}.media-skin{--media-border-radius:0}}
+</style>
+<script type="module" src="vendor/player.js"></script>
+</head>
+<body><main>
+<h1>{{TITLE}}</h1>
+<div class="notes">{{NOTES}}</div>
+<video-player poster="frames/1.jpg">
+<media-container class="media-skin media-container video-skin" data-theme="neutral" data-preset="video" style="aspect-ratio:{{ASPECT}}">
+<video src="{{VIDEO}}" playsinline preload="auto">
+<track kind="captions" src="captions.vtt" srclang="en" label="Observations" default>
+<track kind="chapters" src="chapters.vtt" srclang="en" default>
+<track kind="metadata" label="thumbnails" src="thumbnails.vtt" default>
+{{VOICEOVER}}
+</video>
+<media-poster class="media-poster"><img alt="" decoding="async" class="media-poster-image"></media-poster>
+<media-buffering-indicator class="media-buffering-indicator"><media-icon family="neutral" name="spinner" class="media-buffering-indicator-spinner-icon"></media-icon></media-buffering-indicator>
+<media-error-dialog class="media-dialog-root"><media-dialog-backdrop class="media-dialog-backdrop"></media-dialog-backdrop><media-dialog-popup class="media-dialog-popup"><div class="media-dialog-content"><media-dialog-title class="media-dialog-title"></media-dialog-title><media-dialog-description class="media-dialog-description"></media-dialog-description></div><div class="media-dialog-actions"><media-dialog-close class="media-button media-dialog-close"></media-dialog-close></div></media-dialog-popup></media-error-dialog>
+<media-controls>
+<media-controls-backdrop class="video-controls-backdrop"></media-controls-backdrop>
+<media-controls-content class="video-controls video-controls-content video-controls-wrap"><media-tooltip-group>
+<media-controls-group class="video-controls-start">
+<media-play-button class="media-button media-play-button" id="play"><media-icon family="neutral" name="restart" class="media-button-icon media-play-button-restart-icon"></media-icon><media-icon family="neutral" name="play" class="media-button-icon media-play-button-play-icon"></media-icon><media-icon family="neutral" name="pause" class="media-button-icon media-play-button-pause-icon"></media-icon></media-play-button>
+<media-tooltip trigger="play" side="top" class="media-popup media-popup-safe-area media-popup-transition media-popup-surface media-tooltip"><media-tooltip-label></media-tooltip-label><media-tooltip-shortcut class="media-tooltip-shortcut"></media-tooltip-shortcut></media-tooltip>
+</media-controls-group>
+<media-controls-group class="video-time-slider-group">
+<media-time-group class="media-time-group"><media-time class="media-time-toggle media-time-current-value" type="current" toggle></media-time><media-time-separator class="media-time-separator"></media-time-separator><media-time class="media-time-duration-value" type="duration"></media-time></media-time-group>
+<media-time-slider class="media-slider media-time-slider">
+<media-time-slider-chapters class="media-time-slider-chapters"><template><div class="media-time-slider-chapter"><media-slider-track class="media-slider-track media-time-slider-chapter-track"><media-slider-buffer class="media-slider-buffer media-time-slider-chapter-layer"></media-slider-buffer><media-slider-fill class="media-slider-fill media-time-slider-chapter-layer"></media-slider-fill></media-slider-track></div></template></media-time-slider-chapters>
+<media-slider-thumb class="media-slider-thumb media-time-slider-thumb"></media-slider-thumb>
+<media-slider-preview class="media-slider-preview" overflow="clamp">
+<media-slider-thumbnail class="media-slider-preview-content media-popup-surface media-slider-thumbnail"><img alt="" aria-hidden="true" decoding="async" class="media-slider-thumbnail-image"><media-icon family="neutral" name="spinner" class="media-slider-thumbnail-spinner-icon"></media-icon></media-slider-thumbnail>
+<div class="media-slider-preview-content media-time-slider-preview-content"><media-time-slider-chapter-title class="media-time-slider-chapter-title"></media-time-slider-chapter-title><media-slider-value class="media-time-slider-value" type="pointer"></media-slider-value></div>
+</media-slider-preview>
+</media-time-slider>
+</media-controls-group>
+<media-controls-group class="video-controls-end">
+<media-playback-rate-button class="media-button review-rate" id="rate"></media-playback-rate-button>
+<media-tooltip trigger="rate" side="top" class="media-popup media-popup-safe-area media-popup-transition media-popup-surface media-tooltip"><media-tooltip-label></media-tooltip-label><media-tooltip-shortcut class="media-tooltip-shortcut"></media-tooltip-shortcut></media-tooltip>
+<media-captions-button class="media-button media-captions-button video-controls-captions-button" id="captions"><media-icon family="neutral" name="captions-off" class="media-button-icon media-captions-button-off-icon"></media-icon><media-icon family="neutral" name="captions-on" class="media-button-icon media-captions-button-on-icon"></media-icon></media-captions-button>
+<media-tooltip trigger="captions" side="top" class="media-popup media-popup-safe-area media-popup-transition media-popup-surface media-tooltip"><media-tooltip-label></media-tooltip-label><media-tooltip-shortcut class="media-tooltip-shortcut"></media-tooltip-shortcut></media-tooltip>
+</media-controls-group>
+<media-controls-group class="video-controls-trailing">
+<media-fullscreen-button class="media-button media-fullscreen-button" id="fullscreen"><media-icon family="neutral" name="fullscreen-enter" class="media-button-icon media-fullscreen-button-enter-icon"></media-icon><media-icon family="neutral" name="fullscreen-exit" class="media-button-icon media-fullscreen-button-exit-icon"></media-icon></media-fullscreen-button>
+<media-tooltip trigger="fullscreen" side="top" class="media-popup media-popup-safe-area media-popup-transition media-popup-surface media-tooltip"><media-tooltip-label></media-tooltip-label><media-tooltip-shortcut class="media-tooltip-shortcut"></media-tooltip-shortcut></media-tooltip>
+</media-controls-group>
+</media-tooltip-group></media-controls-content>
+</media-controls>
+<media-hotkey keys="Space" action="togglePaused"></media-hotkey><media-hotkey keys="k" action="togglePaused"></media-hotkey>
+<media-hotkey keys="j" action="seekStep"></media-hotkey><media-hotkey keys="l" action="seekStep"></media-hotkey>
+<media-hotkey keys="ArrowLeft" action="seekStep" value="-5"></media-hotkey><media-hotkey keys="ArrowRight" action="seekStep" value="5"></media-hotkey>
+<media-hotkey keys="," action="seekStep" value="-0.0334"></media-hotkey><media-hotkey keys="." action="seekStep" value="0.0334"></media-hotkey>
+<media-hotkey keys="&gt;" action="speedUp"></media-hotkey><media-hotkey keys="&lt;" action="speedDown"></media-hotkey>
+<media-hotkey keys="0-9" action="seekToPercent"></media-hotkey><media-hotkey keys="Home" action="seekToPercent" value="0"></media-hotkey><media-hotkey keys="End" action="seekToPercent" value="100"></media-hotkey>
+<media-hotkey keys="f" action="toggleFullscreen"></media-hotkey><media-hotkey keys="c" action="toggleSubtitles"></media-hotkey><media-hotkey keys="m" action="toggleMuted"></media-hotkey>
+<media-gesture type="tap" action="togglePaused" pointer="mouse" region="center"></media-gesture><media-gesture type="tap" action="toggleControls" pointer="touch"></media-gesture>
+<media-gesture type="doubletap" action="seekStep" region="left"></media-gesture><media-gesture type="doubletap" action="toggleFullscreen" region="center"></media-gesture><media-gesture type="doubletap" action="seekStep" region="right"></media-gesture>
+<media-status-announcer class="media-status-announcer"></media-status-announcer>
+<div class="video-status-indicators">
+<media-status-indicator actions="toggleSubtitles,toggleFullscreen" class="media-indicator media-status-indicator"><div class="media-indicator-content media-status-indicator-content"><media-icon family="neutral" name="captions-on" class="media-status-indicator-captions-on-icon"></media-icon><media-icon family="neutral" name="captions-off" class="media-status-indicator-captions-off-icon"></media-icon><media-icon family="neutral" name="fullscreen-enter" class="media-status-indicator-fullscreen-enter-icon"></media-icon><media-icon family="neutral" name="fullscreen-exit" class="media-status-indicator-fullscreen-exit-icon"></media-icon><media-status-indicator-value class="media-status-indicator-value"></media-status-indicator-value></div></media-status-indicator>
+<media-seek-indicator class="media-seek-indicator"><media-icon family="neutral" name="chevron" class="media-seek-indicator-icon"></media-icon><media-seek-indicator-value class="media-seek-indicator-value"></media-seek-indicator-value></media-seek-indicator>
+<media-status-indicator actions="togglePaused" class="media-playback-status-indicator"><media-icon family="neutral" name="play" class="media-playback-status-indicator-play-icon"></media-icon><media-icon family="neutral" name="pause" class="media-playback-status-indicator-pause-icon"></media-icon></media-status-indicator>
+</div>
+</media-container>
+</video-player>
+<details><summary>Keyboard shortcuts</summary><dl>
+<dt><kbd>Space</kbd> <kbd>K</kbd></dt><dd>Play or pause</dd>
+<dt><kbd>J</kbd> <kbd>L</kbd></dt><dd>Back or forward 10 s</dd>
+<dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Back or forward 5 s</dd>
+<dt><kbd>,</kbd> <kbd>.</kbd></dt><dd>One frame back or forward</dd>
+<dt><kbd>&lt;</kbd> <kbd>&gt;</kbd></dt><dd>Slower or faster: 1, 1.5, 2, 2.5, 3, 4×</dd>
+<dt><kbd>0</kbd>–<kbd>9</kbd></dt><dd>Jump to 0–90%</dd>
+<dt><kbd>Home</kbd> <kbd>End</kbd></dt><dd>Jump to the start or the end</dd>
+<dt><kbd>C</kbd> <kbd>F</kbd> <kbd>M</kbd></dt><dd>Captions, fullscreen, mute</dd>
+</dl></details>
+<footer><p><a href="video.mp4" download>Download video</a></p></footer>
+</main></body></html>

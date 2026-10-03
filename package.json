@@ -1,0 +1,31 @@
+{
+  "name": "video-review",
+  "version": "0.1.0",
+  "description": "Turn a screen recording and timed observations into a captioned review page.",
+  "repository": "github:hanneslipusch/video-review",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "video-review": "./bin/video-review"
+  },
+  "files": [
+    "bin/video-review"
+  ],
+  "engines": {
+    "bun": ">=1.4"
+  },
+  "scripts": {
+    "check": "bun run build && tsc --noEmit",
+    "test": "bun run build && bun test",
+    "build": "bun build.ts",
+    "prepack": "bun run build"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "@videojs/html": "10.0.0",
+    "typescript": "^7.0.2"
+  },
+  "patchedDependencies": {
+    "@videojs/html@10.0.0": "patches/@videojs%2Fhtml@10.0.0.patch"
+  }
+}
