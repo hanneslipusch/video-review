@@ -1,0 +1,6 @@
+node_modules/
+assets.generated.ts
+*.tgz
+.env*
+evals/results/
+evals-private/
