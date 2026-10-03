@@ -43,21 +43,24 @@ Only listed intervals are included, at original speed, followed by a hold for th
 --help             Show the input contract and example before recording.
 
 --voiceover needs GEMINI_API_KEY from https://aistudio.google.com/apikey for direct Gemini TTS.
-Outputs: index.html, video.mp4, captions.vtt, chapters.vtt, thumbnails.vtt, thumbnails.jpg, timeline.json, frames/*.jpg;
+Speech is cached in $XDG_CACHE_HOME/video-review/speech (default ~/.cache), so a rebuild requests only changed lines.
+Outputs: index.html, video.mp4, preview.gif (captioned, at the page's 2.5×, for pages that cannot play video), captions.vtt, chapters.vtt, thumbnails.vtt, thumbnails.jpg, timeline.json, frames/*.jpg;
 --voiceover adds speech to video.mp4, and voiceover.vtt, speech/*.m4a and a silent player.mp4 for the page,
 which speaks each step during its hold, sped up less than the video.
 Source audio is removed. Only --voiceover adds audio. Inputs are never changed.
 Success prints one JSON object listing one result frame per step. Read each; if a caption is wrong, fix steps.json and build again.
 Exit 0: built, 1: runtime failure, 2: usage.`;
 
+const PREVIEW_RATE = 2.5;
+
 function requireFFmpeg() {
   for (const tool of ['ffmpeg', 'ffprobe'])
     if (!Bun.which(tool)) throw new Error(`${tool} not found on PATH. Install FFmpeg: https://ffmpeg.org/download.html`);
 }
 
-async function run(command: string[]): Promise<string> {
+async function run(command: string[], cwd?: string): Promise<string> {
   return await new Promise<string>((resolve, reject) => {
-    const child = spawn(command[0]!, command.slice(1), { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(command[0]!, command.slice(1), { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
     const stdout: Buffer[] = [], stderr: Buffer[] = [];
     child.stdout.on('data', chunk => stdout.push(chunk));
     child.stderr.on('data', chunk => stderr.push(chunk));
@@ -165,6 +168,8 @@ async function build(video: string, input: string, destination: string, voiceove
     await writeFile(join(output, 'captions.vtt'), vtt(timeline.map((s, i) => ({ id: i + 1, start: s.outcome, end: s.until, text: s.text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") }))));
     await writeFile(join(output, 'chapters.vtt'), chaptersVtt(timeline));
     if (voiceover) await writeFile(join(output, 'voiceover.vtt'), vtt(timeline.map((s, i) => ({ id: i + 1, start: s.outcome, end: s.until, text: `speech/${i + 1}.m4a` }))));
+    // GitHub plays only videos uploaded in its web editor, so pages embed this instead: https://ffmpeg.org/ffmpeg-filters.html#subtitles
+    await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `subtitles=captions.vtt,setpts=PTS/${PREVIEW_RATE},fps=10,scale='min(960,iw)':-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, 'preview.gif'], output);
     const count = Math.ceil(total / 2), columns = Math.min(10, count), rows = Math.ceil(count / columns);
     const tileHeight = 2 * Math.round(160 * rendered.height / rendered.width);
     await run(['ffmpeg', '-v', 'error', '-i', videoPath, '-vf',

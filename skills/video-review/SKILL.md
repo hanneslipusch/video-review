@@ -36,3 +36,7 @@ Good: "Now the model switches to Claude. Watch the message box: the image should
 Bad: "Switching to claude-sonnet-4-6 kept the image and the text."
 
 Without `GEMINI_API_KEY`, build captions-only and tell the user to set the key and build again with `--voiceover`.
+
+## Share
+
+In a pull request, embed `preview.gif` as an image that links to the hosted review page. GitHub doesn't play linked videos.

@@ -32,6 +32,8 @@ test('color metadata changes preserve every interval, hold and outcome frame', a
     const metadata = JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration:stream=codec_type', '-of', 'json', join(out, 'video.mp4')]));
     expect(Number(metadata.format.duration)).toBeCloseTo(30, 1);
     expect(metadata.streams.map((s: { codec_type: string }) => s.codec_type)).toEqual(['video']);
+    const preview = JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'json', join(out, 'preview.gif')]));
+    expect(Number(preview.format.duration)).toBeCloseTo(30 / 2.5, 0);
     expect((await readdir(join(out, 'frames'))).sort()).toEqual(['1.jpg', '2.jpg', '3.jpg']);
     for (const [i, channel] of [2, 1, 0].entries()) {
       const pixel = join(dir, `${i}.rgb`);
