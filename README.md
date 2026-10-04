@@ -2,7 +2,7 @@
 
 Turn an agent's screen recording into a review page that someone can check in under a minute.
 
-![A review page plays LibreChat issue #16636 at 2.5×: switching models drops an attached image before the fix and keeps it after. Hovering the progress bar previews a step.](docs/demo.gif)
+![A review page plays LibreChat issue #16636 at 1.5×: before and after the fix side by side, the result up close, and what wasn't checked. Hovering the progress bar previews a step.](docs/demo.gif)
 
 This review shows a LibreChat bug before and after the fix. One command built it from two 6-second recordings and a `steps.json`.
 
