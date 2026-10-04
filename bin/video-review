@@ -285,7 +285,7 @@ and stay ordered; other videos use their own clock and may repeat or reorder. An
 {"source":"what-changed.png","chapter":"What changed","text":"Watch the attachment when the model switches."}
 Every source fits the main video's frame with letterboxing.
 Seconds refer to the source media clock. Each end must show the observed result.
-Only listed intervals are included, at original speed, followed by a hold for the observation.
+Each interval plays at original speed. During its hold the recording plays on, and freezes at the next step's start.
 
 --out <directory>  Required; replaces a review built here before, refuses any other folder.
 --voiceover        Add a voiceover. Use it when the reviewer will listen rather than read, such as
@@ -405,7 +405,9 @@ async function build(video, input, destination, voiceover) {
     }
     for (const [index, step] of timeline.entries()) {
       const action = step.outcome - step.at, total = step.until - step.at;
-      filters.push(`[source${index}]trim=start=${step.start}:end=${step.end},setpts=PTS-STARTPTS,fps=30,scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,tpad=stop_mode=clone:stop_duration=${total},trim=duration=${total},setpts=PTS-STARTPTS[v${index}]`);
+      const later = timeline.flatMap((s, i) => stepSources[i] === stepSources[index] && s.start >= step.end ? [s.start] : []);
+      const stop = Math.min(step.start + total, media.get(stepSources[index]).seconds, ...later);
+      filters.push(`[source${index}]trim=start=${step.start}:end=${stop},setpts=PTS-STARTPTS,fps=30,scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,tpad=stop_mode=clone:stop_duration=${total},trim=duration=${total},setpts=PTS-STARTPTS[v${index}]`);
       if (voiceover)
         filters.push(`[${sources.length + index}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,adelay=${Math.round(action * 1000)}:all=1,apad,atrim=duration=${total},asetpts=PTS-STARTPTS[a${index}]`);
     }

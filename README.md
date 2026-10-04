@@ -56,7 +56,7 @@ Serve the `review` folder with a server that answers Range requests, or the play
 
 ## What the reviewer gets
 
-The page plays at 2.5×, and the rate button steps from 1× to 4×. Each step plays at recorded speed, then holds on its result while the caption shows. Hover a segment of the progress bar to see its chapter and a frame.
+The page plays at 2.5×, and the rate button steps from 1× to 4×. Each step plays at recorded speed. While its caption shows, the recording plays on, and freezes at the next step's start. Hover a segment of the progress bar to see its chapter and a frame.
 
 The folder also holds `video.mp4` for chat, `frames/` with one image per result, and `timeline.json` with source hashes and step times. GitHub plays only videos uploaded in its editor, so embed `preview.gif` in a pull request: it plays the review at 2.5× with the captions, and can link to the page. The [Video.js 10](https://videojs.org/) player is bundled, with no CDN.
 
