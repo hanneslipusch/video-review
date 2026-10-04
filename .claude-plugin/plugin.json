@@ -1,6 +1,6 @@
 {
   "name": "video-review",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Turn a screen recording and timed observations into a captioned review page.",
   "author": { "name": "Hannes Lipusch" }
 }
