@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { parseReview, pace, chaptersVtt, renderPlayer, vttTime, vtt } from './contract';
+import { parseReview, parseLines, pace, chaptersVtt, renderPlayer, vttTime, vtt } from './contract';
 
 test('wrong intervals fail before paid speech or evidence writes', () => {
   const good = { start: 0, end: 2, chapter: 'Saved value', text: 'Saved.' };
@@ -8,18 +8,10 @@ test('wrong intervals fail before paid speech or evidence writes', () => {
   expect(() => parseReview({ title: 'Review', steps: [{ ...good, text: 'cue --> injection' }] }, 3)).toThrow('text');
 });
 
-test('speech never overlaps the next observation, even when the take is too short', () => {
-  const [first, second] = pace([{ start: 0, end: 0.1, chapter: 'Saved value', text: 'Saved.' }, { start: 1, end: 2, chapter: 'Reloaded value', text: 'Reloaded.' }], [9, 1]);
-  expect(first!.outcome).toBeCloseTo(0.1);
-  expect(first!.until - first!.outcome).toBeGreaterThanOrEqual(9);
-  expect(second!.at).toBe(first!.until);
-  expect(second!.until - second!.outcome).toBeGreaterThanOrEqual(6);
-});
-
 test('literal template tokens and dollar sequences cannot corrupt the player', () => {
   const title = '{{DATA}} $& </script>';
-  const result = renderPlayer('<title>{{TITLE}}</title>{{ASPECT}}{{NOTES}}', title, '<script>x</script> https://example.com/pull/7', '16/9', false);
-  expect(result).toBe('<title>{{DATA}} $&amp; &lt;/script&gt;</title>16/9<p>&lt;script&gt;x&lt;/script&gt; <a href="https://example.com/pull/7">https://example.com/pull/7</a></p>\n');
+  const result = renderPlayer('<title>{{TITLE}}</title><h1>{{TITLE}}</h1>', title);
+  expect(result).toBe('<title>{{DATA}} $&amp; &lt;/script&gt;</title><h1>{{DATA}} $&amp; &lt;/script&gt;</h1>');
 });
 
 test('VTT tracks preserve optional cue IDs, millisecond rounding and payloads', () => {
@@ -30,8 +22,8 @@ test('VTT tracks preserve optional cue IDs, millisecond rounding and payloads', 
 
 test('chapters reach the end of the media, so the player adds no unlabelled gap segment', () => {
   const [chapter] = pace([{ start: 0, end: 46.5333, chapter: 'Saved value', text: 'Saved.' }], [0]);
-  expect(chapter!.until).toBeCloseTo(52.5333, 3);
-  expect(chaptersVtt([chapter!])).toContain('00:00:00.000 --> 00:00:52.534\nSaved value');
+  expect(chapter!.until).toBeCloseTo(46.5333, 3);
+  expect(chaptersVtt([chapter!])).toContain('00:00:00.000 --> 00:00:46.534\nSaved value');
   expect(chaptersVtt([{ ...chapter!, until: 17.2 }])).toContain('--> 00:00:17.200');
 });
 
@@ -41,10 +33,12 @@ test('long chapter titles fail with the step and limit before building', () => {
   expect(() => parseReview({ title: 'Review', steps: [step, { ...step, start: 1, end: 2, chapter: 'W'.repeat(21) }] }, 2)).toThrow('Step 2: chapter must be one line of 1–20 characters');
 });
 
-test('voiceover steps hold for their speech, not for caption reading time', () => {
-  const steps = [{ start: 0, end: 1, chapter: 'Saved value', text: Array(20).fill('word').join(' ') }];
-  const [spoken] = pace(steps, [7]);
-  const [read] = pace(steps, [0]);
-  expect(spoken!.until - spoken!.outcome).toBeCloseTo(8, 1);
-  expect(read!.until - read!.outcome).toBeCloseTo(18, 1);
+
+test('a step shows only its own footage, and the build names every step too short for its line', () => {
+  const step = { start: 0, end: 4, chapter: 'Saved value', text: 'The saved value appeared.' };
+  const [shown, card] = pace([step, { ...step, source: 'card.png', start: 0, end: 1 }], [0, 6]);
+  expect([shown!.at, shown!.until, card!.until - card!.at]).toEqual([0, 4, 6.5]);
+  expect(() => pace([step, { ...step, start: 4, end: 5 }, { ...step, start: 5, end: 6 }], [0, 0, 2]))
+    .toThrow('Step 2: its line needs 2.2 s; its footage is 1.0 s.\nStep 3: its line needs 2.5 s; its footage is 1.0 s.');
+  expect(parseLines({ steps: [{ text: ' Saved. ' }] })).toEqual(['Saved.']);
 });
