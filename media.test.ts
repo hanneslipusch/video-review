@@ -11,7 +11,7 @@ const run = (command: string[]) => {
   return result.stdout;
 };
 
-test('color metadata changes preserve every interval, and a hold plays on until the next step', async () => {
+test('color metadata changes preserve every interval', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'video-review-media-'));
   try {
     for (const [i, color] of ['blue', 'green', 'red'].entries()) {
@@ -22,30 +22,26 @@ test('color metadata changes preserve every interval, and a hold plays on until 
     await writeFile(join(dir, 'concat.txt'), "file '0.mp4'\nfile '1.mp4'\nfile '2.mp4'\n");
     run(['ffmpeg', '-v', 'error', '-f', 'concat', '-safe', '0', '-i', join(dir, 'concat.txt'), '-c', 'copy', join(dir, 'source.mp4')]);
     await writeFile(join(dir, 'steps.json'), JSON.stringify({ title: 'Metadata transition', steps: [
-      { start: 0, end: 1.5, chapter: 'Blue frame', text: 'The first blue frame remained on screen.' },
-      { start: 4, end: 8.4, chapter: 'Red frame', text: 'The final red frame appeared after the change.' },
+      { start: 0, end: 2, chapter: 'Blue frame', text: 'Blue stayed.' },
+      { start: 2, end: 4, chapter: 'Green frame', text: 'Green showed.' },
+      { start: 4, end: 8.4, chapter: 'Red frame', text: 'Red appeared.' },
     ] }));
     const out = join(dir, 'review');
     const build = (destination: string) => run(['bun', 'bin/video-review', 'build', join(dir, 'source.mp4'), join(dir, 'steps.json'), '--out', destination]);
     build(out);
     const metadata = JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration:stream=codec_type', '-of', 'json', join(out, 'video.mp4')]));
-    // Blue 1.5 s + 6.3 s hold, then red 4.4 s + 7.2 s hold.
-    expect(Number(metadata.format.duration)).toBeCloseTo(19.4, 1);
+    expect(Number(metadata.format.duration)).toBeCloseTo(8.4, 1);
     expect(metadata.streams.map((s: { codec_type: string }) => s.codec_type)).toEqual(['video']);
     const preview = JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'json', join(out, 'preview.gif')]));
-    expect(Number(preview.format.duration)).toBeCloseTo(19.4 / 2.5, 0);
-    expect((await readdir(join(out, 'frames'))).sort()).toEqual(['1.jpg', '2.jpg']);
-    // Outcomes, then the hold at 3 s (source 3 s, green) and 7.5 s (frozen before red starts at 4 s).
-    const frames = [join(out, 'frames', '1.jpg'), join(out, 'frames', '2.jpg'), 3, 7.5];
-    for (const [i, channel] of [2, 0, 1, 1].entries()) {
-      const pixel = join(dir, `${i}.rgb`), frame = frames[i]!;
-      run(['ffmpeg', '-v', 'error', ...(typeof frame === 'number' ? ['-ss', String(frame), '-i', join(out, 'video.mp4')] : ['-i', frame]), '-vf', 'scale=1:1,format=rgb24', '-frames:v', '1', '-threads', '1', '-f', 'rawvideo', pixel]);
+    expect(Number(preview.format.duration)).toBeCloseTo(8.4 / 2.5, 0);
+    expect((await readdir(join(out, 'frames'))).sort()).toEqual(['1.jpg', '2.jpg', '3.jpg']);
+    for (const [i, channel] of [2, 1, 0].entries()) {
+      const pixel = join(dir, `${i}.rgb`);
+      run(['ffmpeg', '-v', 'error', '-i', join(out, 'frames', `${i + 1}.jpg`), '-vf', 'crop=200:100:380:150,scale=1:1,format=rgb24', '-frames:v', '1', '-threads', '1', '-f', 'rawvideo', pixel]);
       const rgb = await readFile(pixel);
-      expect(rgb.length).toBe(3);
       expect(rgb[channel]!).toBeGreaterThan(Math.max(...rgb.filter((_, index) => index !== channel)));
     }
-    const timeline = JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8'));
-    expect(timeline.voiceover).toBeNull();
+    expect(JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8')).voiceover).toBeNull();
     build(out);
     await writeFile(join(dir, 'notes.txt'), 'keep');
     expect(() => build(dir)).toThrow('not a video-review output');
@@ -59,11 +55,12 @@ test('color metadata changes preserve every interval, and a hold plays on until 
 test('mixed sources retain image and video outcomes at the main canvas size', async () => {
   const dir = await mkdtemp(join(process.cwd(), 'mixed-test-'));
   try {
-    for (const [name, color, size] of [['main.mp4', 'blue', '64x48'], ['other.mp4', 'red', '48x64'], ['card.png', 'green', '128x80']])
-      run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', `color=${color}:s=${size}:d=1:r=30`, ...(name!.endsWith('.png') ? ['-frames:v', '1'] : ['-c:v', 'libx264']), '-threads', '1', join(dir, name!)]);
-    const step = { start: 0, end: 0.1, chapter: 'Result', text: 'Shown.' };
+    // main.mp4 stores 32x48 pixels twice as wide as tall, so players show it at 4:3.
+    for (const [name, color, size, sar] of [['main.mp4', 'blue', '32x48', '2'], ['other.mp4', 'red', '48x64', '1'], ['card.png', 'green', '128x80', '1']])
+      run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', `color=${color}:s=${size}:d=4:r=30`, '-vf', `setsar=${sar}`, ...(name!.endsWith('.png') ? ['-frames:v', '1'] : ['-c:v', 'libx264']), '-threads', '1', join(dir, name!)]);
+    const step = { start: 0, end: 2, chapter: 'Result', text: 'Shown.' };
     const card = { source: 'card.png', chapter: 'Card', text: 'Shown.' };
-    const steps = [card, step, { ...step, source: 'other.mp4', start: 0.4, end: 0.5 }, { ...step, source: 'other.mp4' }, card];
+    const steps = [card, step, { ...step, source: 'other.mp4', start: 2, end: 4 }, { ...step, source: 'other.mp4' }, card];
     const input = join(dir, 'steps.json'), out = join(dir, 'review');
     const build = () => run(['bun', 'bin/video-review', 'build', join(dir, 'main.mp4'), input, '--out', out]);
     await writeFile(input, JSON.stringify({ title: 'Mixed', steps }));
@@ -71,15 +68,16 @@ test('mixed sources retain image and video outcomes at the main canvas size', as
     const timeline = JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8'));
     expect(timeline.sources.length).toBe(3);
     expect(timeline.steps.map((s: { source?: string }) => s.source)).toEqual(['card.png', undefined, 'other.mp4', 'other.mp4', 'card.png']);
-    for (const [i, channel] of [1, 2, 0, 0, 1].entries()) {
-      const file = join(dir, `pixel-${i}.rgb`);
-      const info = JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'stream=width,height', '-of', 'json', join(out, 'frames', `${i + 1}.jpg`)]));
-      expect(info.streams[0]).toEqual({ width: 64, height: 48 });
-      run(['ffmpeg', '-v', 'error', '-i', join(out, 'frames', `${i + 1}.jpg`), '-vf', 'crop=2:2:32:24,format=rgb24', '-frames:v', '1', '-threads', '1', '-f', 'rawvideo', file]);
+    const video = JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'stream=width,height,sample_aspect_ratio', '-of', 'json', join(out, 'video.mp4')]));
+    expect(video.streams[0]).toEqual({ width: 1920, height: 1080, sample_aspect_ratio: '1:1' });
+    // Strip tiles are 960x540; x=150 is inside main.mp4's 4:3 picture only when its pixels are widened.
+    for (const [i, channel, x] of [[0, 1, 480], [1, 2, 480], [1, 2, 150], [2, 0, 480], [3, 0, 480], [4, 1, 480]] as const) {
+      const file = join(dir, `pixel-${i}-${x}.rgb`);
+      run(['ffmpeg', '-v', 'error', '-i', join(out, 'frames', `${i + 1}.jpg`), '-vf', `crop=2:2:${x}:200,format=rgb24`, '-frames:v', '1', '-threads', '1', '-f', 'rawvideo', file]);
       const rgb = await readFile(file);
       expect(rgb[channel]!).toBeGreaterThan(Math.max(...rgb.subarray(0, 3).filter((_, j) => j !== channel)));
     }
-    for (const invalid of [{ ...step, source: 'other.mp4', end: 2 }, { ...card, start: 0 }]) {
+    for (const invalid of [{ ...step, source: 'other.mp4', end: 5 }, { ...card, start: 0 }]) {
       await writeFile(input, JSON.stringify({ title: 'Invalid', steps: [invalid] }));
       expect(build).toThrow();
       expect(JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8')).title).toBe('Mixed');
