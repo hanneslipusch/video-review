@@ -58,15 +58,15 @@ Serve the `review` folder from any static server; browsers block its player scri
 
 ## What the reviewer gets
 
-The page plays at 1.5×, and the rate button steps from 1× to 4×. Each line stays on screen at least as long as a subtitle reader needs at 1.5×: 17 characters per second of watching time, or the spoken line plus half a second with `--voiceover`. Each step plays at recorded speed in a 16:9 frame, with no frozen frames. Hover a segment of the progress bar to see its chapter and a frame.
+The page plays at 1.5×, and the rate button steps from 1× to 4×. Each line stays on screen at least as long as a subtitle reader needs at 1.5×: 17 characters per second of watching time, or the spoken line plus half a second. Each step plays at recorded speed in a 16:9 frame, with no frozen frames. Hover a segment of the progress bar to see its chapter and a frame.
 
 The folder also holds `video.mp4` for chat, `frames/` with each step's first, middle and last frame and its caption, and `timeline.json` with source hashes and step times. GitHub plays only videos uploaded in its editor, so embed `preview.gif` in a pull request: it plays the review at 2.5× with the captions, and can link to the page. The [Video.js 10](https://videojs.org/) player is bundled, with no CDN.
 
-## Add a voiceover
+## Voiceover
 
-Pass `--voiceover` when people will listen rather than read. It needs `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey). Only the caption text goes to the [Gemini TTS API](https://ai.google.dev/gemini-api/docs/speech-generation). Each line's speech is cached in `~/.cache/video-review/speech`, or under `$XDG_CACHE_HOME`, so a rebuild requests only the lines that changed.
+With `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey) set, the build speaks each line; without it, the review is captions-only. Pass `--captions-only` for a silent review. Only the caption text goes to the [Gemini TTS API](https://ai.google.dev/gemini-api/docs/speech-generation). Each line's speech is cached in `~/.cache/video-review/speech`, or under `$XDG_CACHE_HOME`, so a rebuild requests only the lines that changed.
 
-Each step must last as long as its spoken line, so `video-review lines steps.json --voiceover` prints the seconds each line needs. The voice is part of `video.mp4`.
+Each step must last as long as its spoken line, so `video-review lines steps.json` prints the seconds each line needs. The voice is part of `video.mp4`.
 
 ## Develop
 
