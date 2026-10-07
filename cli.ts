@@ -16,7 +16,7 @@ const help = `video-review — turn an existing recording into a captioned revie
   video-review build <video> <steps.json> --out <directory>
   video-review build --help
   video-review frames <video> --out <directory>
-  video-review lines <steps.json> [--voiceover]
+  video-review lines <steps.json> [--captions-only]
 
 Example:
   video-review frames recording.webm --out frames
@@ -31,7 +31,7 @@ The recorder, verification, hosting and sharing belong to your workflow.`;
 const buildHelp = `${help}
 
 Input: {"title":"Saved settings","steps":[{"start":0,"end":3,"chapter":"Saved value","text":"The saved value appeared."}]}
-chapter is a short label of 1–${CHAPTER_LIMIT} characters; text is the caption and, with --voiceover, the spoken line.
+chapter is a short label of 1–${CHAPTER_LIMIT} characters; text is the caption and the spoken line.
 Optional source names another video or a PNG/JPG card, relative to steps.json. Steps without it use <video>
 and stay ordered; other videos use their own clock and may repeat or reorder. An image step has no start or end:
 {"source":"what-changed.png","chapter":"What changed","text":"Watch the attachment when the model switches."}
@@ -41,20 +41,27 @@ for its whole length, and must last as long as its line needs: the build names e
 An image step shows for as long as its line needs.
 
 --out <directory>  Required; replaces a review built here before, refuses any other folder.
---voiceover        Add a voiceover. Use it when the reviewer will listen rather than read, such as
-                   a demo for people outside the work; skip it for routine evidence.
+--captions-only    Build without speech, when the user asks for a silent review.
 --help             Show the input contract and example before recording.
 
---voiceover needs GEMINI_API_KEY from https://aistudio.google.com/apikey for direct Gemini TTS.
+With GEMINI_API_KEY set, the build speaks each line with Gemini TTS into video.mp4; without it, the review is captions-only.
 Speech is cached in $XDG_CACHE_HOME/video-review/speech (default ~/.cache), so a rebuild requests only changed lines.
 Outputs: index.html, video.mp4, preview.gif (captioned, at 2.5×, for pages that cannot play video), poster.jpg,
 captions.vtt, chapters.vtt, thumbnails.vtt, thumbnails.jpg, timeline.json, and frames/*.jpg: per step, its first,
-middle and last frame with the caption as shown. --voiceover adds the speech to video.mp4.
+middle and last frame with the caption as shown.
 Source audio is removed. Inputs are never changed.
 Success prints one JSON object listing the frames. Read each; if one does not show what its caption says, fix steps.json and build again.
 Exit 0: built, 1: runtime failure, 2: usage.`;
 
 const PREVIEW_RATE = 2.5;
+
+// build and lines decide alike, so lines times each step as the build will play it.
+function speechKey(captionsOnly: boolean) {
+  if (captionsOnly) return undefined;
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) process.stderr.write('No GEMINI_API_KEY, so captions only. Deliver this review, and tell the user to set the key from https://aistudio.google.com/apikey and build again for a voiceover.\n');
+  return key || undefined;
+}
 
 function requireFFmpeg() {
   for (const tool of ['ffmpeg', 'ffprobe'])
@@ -91,8 +98,9 @@ async function sha256(path: string): Promise<string> {
   return hasher.digest('hex');
 }
 
-async function build(video: string, input: string, destination: string, voiceover: boolean) {
+async function build(video: string, input: string, destination: string, key: string | undefined) {
   requireFFmpeg();
+  const voiceover = key !== undefined;
   const source = await realpath(video);
   const target = resolve(destination);
   const main = await probe(source, true);
@@ -115,8 +123,6 @@ async function build(video: string, input: string, destination: string, voiceove
     stepSources.push(path);
   }
   await run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=s=2x2:d=0.04', '-c:v', 'libx264', '-f', 'null', '-']);
-  const key = process.env.GEMINI_API_KEY;
-  if (voiceover && !key) throw new Error('Set GEMINI_API_KEY from https://aistudio.google.com/apikey, or build without --voiceover for a captions-only review.');
   const existing = await readdir(target).catch(() => null);
   if (existing?.length && !existing.includes('timeline.json'))
     throw new Error(`${target} exists and is not a video-review output. Choose another --out directory.`);
@@ -129,9 +135,9 @@ async function build(video: string, input: string, destination: string, voiceove
     await mkdir(join(output, 'frames'));
     const lengths: number[] = [];
     for (const [index, step] of review.steps.entries()) {
-      if (!voiceover) { lengths.push(0); continue; }
+      if (!key) { lengths.push(0); continue; }
       process.stderr.write(`Voiceover ${index + 1}/${review.steps.length}\n`);
-      await speak(step.text, join(output, `speech-${index}.wav`), key!);
+      await speak(step.text, join(output, `speech-${index}.wav`), key);
       lengths.push((await probe(join(output, `speech-${index}.wav`))).seconds);
     }
     const timeline = pace(review.steps, lengths);
@@ -198,16 +204,14 @@ async function build(video: string, input: string, destination: string, voiceove
   }
 }
 
-async function lines(input: string, voiceover: boolean) {
+async function lines(input: string, key: string | undefined) {
   const texts = parseLines(JSON.parse(await readFile(input, 'utf8')));
-  const key = process.env.GEMINI_API_KEY;
-  if (voiceover && !key) throw new Error('Set GEMINI_API_KEY from https://aistudio.google.com/apikey, or time the lines without --voiceover.');
   const scratch = await mkdtemp(join(tmpdir(), 'video-review-lines-'));
   try {
     const seconds: number[] = [];
     for (const [index, text] of texts.entries()) {
-      if (!voiceover) { seconds.push(lineSeconds(text, 0)); continue; }
-      await speak(text, join(scratch, `${index}.wav`), key!);
+      if (!key) { seconds.push(lineSeconds(text, 0)); continue; }
+      await speak(text, join(scratch, `${index}.wav`), key);
       seconds.push(lineSeconds(text, (await probe(join(scratch, `${index}.wav`))).seconds));
     }
     console.log(JSON.stringify({ seconds }));
@@ -239,16 +243,17 @@ async function frames(video: string, destination: string) {
 }
 
 try {
-  const { values, positionals } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' }, help: { type: 'boolean' }, voiceover: { type: 'boolean' } }, allowPositionals: true, strict: true });
+  const { values, positionals } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' }, help: { type: 'boolean' }, 'captions-only': { type: 'boolean' } }, allowPositionals: true, strict: true });
   const [command, video, input, ...extra] = positionals;
   if (values.help || !command) {
     console.log(command === 'build' ? buildHelp : help);
   } else if (command === 'build' && video && input && values.out && !extra.length) {
-    await build(video, input, values.out, values.voiceover === true);
+    await build(video, input, values.out, speechKey(values['captions-only'] === true));
   } else if (command === 'lines' && video && !input && !values.out) {
-    if (values.voiceover) requireFFmpeg();
-    await lines(video, values.voiceover === true);
-  } else if (command === 'frames' && video && !input && values.out && !values.voiceover) {
+    const key = speechKey(values['captions-only'] === true);
+    if (key) requireFFmpeg();
+    await lines(video, key);
+  } else if (command === 'frames' && video && !input && values.out && !values['captions-only']) {
     await frames(video, values.out);
   } else {
     console.error(help);
