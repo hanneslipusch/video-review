@@ -60,7 +60,7 @@ Serve the `review` folder from any static server; browsers block its player scri
 
 The page plays at 1.5×, and the rate button steps from 1× to 4×. Each line stays on screen at least as long as a subtitle reader needs at 1.5×: 17 characters per second of watching time, or the spoken line plus half a second. Each step plays at recorded speed in a 16:9 frame, with no frozen frames. Hover a segment of the progress bar to see its chapter and a frame.
 
-The folder also holds `video.mp4` for chat, `frames/` with each step's first, middle and last frame and its caption, and `timeline.json` with source hashes and step times. GitHub plays only videos uploaded in its editor, so embed `preview.gif` in a pull request: it plays the review at 2.5× with the captions, and can link to the page. The [Video.js 10](https://videojs.org/) player is bundled, with no CDN.
+The folder also holds `video.mp4` for chat, `frames/` with each step's first, middle and last frame and its caption, and `timeline.json` with source hashes and step times. `preview.gif` plays the review at 2.5× with the captions, for pages that can't play video, such as a pull request. Link the page first; GitHub shows a GIF over 5 MiB as a broken image. The [Video.js 10](https://videojs.org/) player is bundled, with no CDN.
 
 ## Voiceover
 
