@@ -1,6 +1,6 @@
 {
   "name": "video-review",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Turn a screen recording and timed observations into a captioned review page.",
   "repository": "github:hanneslipusch/video-review",
   "license": "MIT",

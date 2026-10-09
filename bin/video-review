@@ -440,23 +440,27 @@ async function build(video, input, destination, key) {
     await writeFile2(join2(output, "chapters.vtt"), chaptersVtt(timeline));
     const captioned = "subtitles=captions.vtt";
     await run(["ffmpeg", "-v", "error", "-i", "video.mp4", "-vf", `${captioned},setpts=PTS/${PREVIEW_RATE},fps=10,scale='min(960,iw)':-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, "preview.gif"], output);
-    const picks = timeline.flatMap((s) => [s.at + 0.1, (s.at + s.until) / 2, s.until - 1 / 30].map((t) => `eq(n,${Math.round(t * 30)})`));
-    await run([
-      "ffmpeg",
-      "-v",
-      "error",
-      "-i",
-      "video.mp4",
-      "-vf",
-      `${captioned},select='${picks.join("+")}',scale='min(960,iw)':-2,tile=3x1:padding=8:color=white`,
-      "-fps_mode",
-      "vfr",
-      "-pix_fmt",
-      "yuvj420p",
-      "-q:v",
-      "3",
-      join2("frames", "%d.jpg")
-    ], output);
+    for (let first = 0;first < timeline.length; first += 33) {
+      const picks = timeline.slice(first, first + 33).flatMap((s) => [s.at + 0.1, (s.at + s.until) / 2, s.until - 1 / 30].map((t) => `eq(n,${Math.round(t * 30)})`));
+      await run([
+        "ffmpeg",
+        "-v",
+        "error",
+        "-i",
+        "video.mp4",
+        "-vf",
+        `${captioned},select='${picks.join("+")}',scale='min(960,iw)':-2,tile=3x1:padding=8:color=white`,
+        "-fps_mode",
+        "vfr",
+        "-pix_fmt",
+        "yuvj420p",
+        "-q:v",
+        "3",
+        "-start_number",
+        String(first + 1),
+        join2("frames", "%d.jpg")
+      ], output);
+    }
     for (const [index] of timeline.entries())
       if (!(await stat(join2(output, "frames", `${index + 1}.jpg`)).catch(() => null))?.size)
         throw new Error(`Frames for step ${index + 1} are missing.`);

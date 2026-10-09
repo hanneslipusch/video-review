@@ -86,3 +86,23 @@ test('mixed sources retain image and video outcomes at the main canvas size', as
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
 }, 30_000);
+
+test('a review longer than one frame-picking run keeps every step its own frames', async () => {
+  const dir = await mkdtemp(join(process.cwd(), 'long-test-'));
+  try {
+    for (const color of ['red', 'green'])
+      run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', `color=${color}:s=64x48`, '-frames:v', '1', join(dir, `${color}.png`)]);
+    run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=blue:s=64x48:d=1:r=30', '-c:v', 'libx264', '-threads', '1', join(dir, 'main.mp4')]);
+    const steps = Array.from({ length: 34 }, (_, i) => ({ source: i % 2 ? 'green.png' : 'red.png', chapter: `Step ${i + 1}`, text: 'Shown.' }));
+    const input = join(dir, 'steps.json'), out = join(dir, 'review');
+    await writeFile(input, JSON.stringify({ title: 'Long', steps }));
+    run(['bun', 'bin/video-review', 'build', join(dir, 'main.mp4'), input, '--out', out, '--captions-only']);
+    expect((await readdir(join(out, 'frames'))).length).toBe(34);
+    for (const [step, channel] of [[1, 0], [34, 1]] as const) {
+      const file = join(dir, `${step}.rgb`);
+      run(['ffmpeg', '-v', 'error', '-i', join(out, 'frames', `${step}.jpg`), '-vf', 'crop=2:2:480:200,format=rgb24', '-frames:v', '1', '-f', 'rawvideo', file]);
+      const rgb = await readFile(file);
+      expect(rgb[channel]!).toBeGreaterThan(Math.max(...rgb.subarray(0, 3).filter((_, j) => j !== channel)));
+    }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}, 120_000);
