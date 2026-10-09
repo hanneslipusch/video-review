@@ -175,9 +175,12 @@ async function build(video: string, input: string, destination: string, key: str
     await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `${captioned},setpts=PTS/${PREVIEW_RATE},fps=10,scale='min(960,iw)':-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, 'preview.gif'], output);
     // Three frames per step, as a viewer sees them: the start, the middle and the last.
     // The start is 0.1 s in, since libass times captions to 1/100 s and can show the previous one first.
-    const picks = timeline.flatMap(s => [s.at + 0.1, (s.at + s.until) / 2, s.until - 1 / 30].map(t => `eq(n,${Math.round(t * 30)})`));
-    await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `${captioned},select='${picks.join('+')}',scale='min(960,iw)':-2,tile=3x1:padding=8:color=white`,
-      '-fps_mode', 'vfr', '-pix_fmt', 'yuvj420p', '-q:v', '3', join('frames', '%d.jpg')], output);
+    // ffmpeg rejects an expression of more than 100 terms (stack_index in libavutil/eval.c), so 33 steps per run.
+    for (let first = 0; first < timeline.length; first += 33) {
+      const picks = timeline.slice(first, first + 33).flatMap(s => [s.at + 0.1, (s.at + s.until) / 2, s.until - 1 / 30].map(t => `eq(n,${Math.round(t * 30)})`));
+      await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `${captioned},select='${picks.join('+')}',scale='min(960,iw)':-2,tile=3x1:padding=8:color=white`,
+        '-fps_mode', 'vfr', '-pix_fmt', 'yuvj420p', '-q:v', '3', '-start_number', String(first + 1), join('frames', '%d.jpg')], output);
+    }
     for (const [index] of timeline.entries())
       if (!(await stat(join(output, 'frames', `${index + 1}.jpg`)).catch(() => null))?.size) throw new Error(`Frames for step ${index + 1} are missing.`);
     await run(['ffmpeg', '-v', 'error', '-ss', String(timeline[0]!.until - 0.1), '-i', 'video.mp4', '-frames:v', '1', '-pix_fmt', 'yuvj420p', '-q:v', '2', 'poster.jpg'], output);
