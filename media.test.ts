@@ -58,7 +58,7 @@ test('mixed sources retain image and video outcomes at the main canvas size', as
   try {
     // main.mp4 stores 32x48 pixels twice as wide as tall, so players show it at 4:3.
     for (const [name, color, size, sar] of [['main.mp4', 'blue', '32x48', '2'], ['other.mp4', 'red', '48x64', '1'], ['card.png', 'green', '128x80', '1']])
-      run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', `color=${color}:s=${size}:d=4:r=30`, '-vf', `setsar=${sar}`, ...(name!.endsWith('.png') ? ['-frames:v', '1'] : ['-c:v', 'libx264']), '-threads', '1', join(dir, name!)]);
+      run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', `color=${color}:s=${size}:d=4:r=30`, '-vf', `setsar=${sar}`, ...(name!.endsWith('.png') ? ['-frames:v', '1', '-update', '1'] : ['-c:v', 'libx264']), '-threads', '1', join(dir, name!)]);
     const step = { start: 0, end: 2, chapter: 'Result', text: 'Shown.' };
     const card = { source: 'card.png', chapter: 'Card', text: 'Shown.' };
     const steps = [card, step, { ...step, source: 'other.mp4', start: 2, end: 4 }, { ...step, source: 'other.mp4' }, card];
@@ -91,7 +91,7 @@ test('a review longer than one frame-picking run keeps every step its own frames
   const dir = await mkdtemp(join(process.cwd(), 'long-test-'));
   try {
     for (const color of ['red', 'green'])
-      run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', `color=${color}:s=64x48`, '-frames:v', '1', join(dir, `${color}.png`)]);
+      run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', `color=${color}:s=64x48`, '-frames:v', '1', '-update', '1', join(dir, `${color}.png`)]);
     run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=blue:s=64x48:d=1:r=30', '-c:v', 'libx264', '-threads', '1', join(dir, 'main.mp4')]);
     const steps = Array.from({ length: 34 }, (_, i) => ({ source: i % 2 ? 'green.png' : 'red.png', chapter: `Step ${i + 1}`, text: 'Shown.' }));
     const input = join(dir, 'steps.json'), out = join(dir, 'review');

@@ -1,5 +1,9 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { engines } from './package.json';
+
+// Bun ignores engines, and an older Bun prints help and exits 0 for `bun --check`: https://bun.com/docs/runtime/semver
+if (!Bun.semver.satisfies(Bun.version, engines.bun)) throw new Error(`Bun ${Bun.version} is too old; this repo needs ${engines.bun}. Run bun upgrade.`);
 
 const player = await Bun.build({ entrypoints: ['./player.ts'], target: 'browser', minify: true, conditions: ['browser', 'production'], metafile: true });
 if (!player.success) throw new AggregateError(player.logs, 'Player bundle failed.');

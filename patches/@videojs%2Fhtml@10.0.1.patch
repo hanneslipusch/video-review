@@ -1,5 +1,5 @@
-Video.js 10.0.0 declarations fail strict type-checking: https://github.com/videojs/v10/issues/2369
-Delete this patch when an @videojs/html release passes `tsc` without it.
+Video.js 10.0.1 declarations fail strict type-checking: https://github.com/videojs/v10/issues/2369
+Delete this patch when an @videojs/html release type-checks without it.
 
 diff --git a/dist/dev/ui/airplay-button/element.d.ts b/dist/dev/ui/airplay-button/element.d.ts
 index 9e9ab3fdbba33ceba576c62ddc2d51e8b31fe9da..a415d07761dd7ed9d3c21791afa23e35a774fa7e 100644

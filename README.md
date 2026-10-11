@@ -1,6 +1,6 @@
 # video-review
 
-Turn an agent's screen recording into a review page that someone can check in under a minute.
+Turn an agent's screen recording into a narrated review video that someone can check in under a minute.
 
 ![A review page plays LibreChat issue #16636 at 1.5×: before and after the fix side by side, the result up close, and what wasn't checked. Hovering the progress bar previews a step.](docs/demo.gif)
 
@@ -17,10 +17,11 @@ claude plugin marketplace add hanneslipusch/agents
 claude plugin install video-review@hanneslipusch
 ```
 
-For other agents, install the skill with `bunx skills add hanneslipusch/video-review` and the command from a clone:
+For other agents, install the skill and the command:
 
 ```sh
-git clone https://github.com/hanneslipusch/video-review && cd video-review && bun link
+bunx skills add hanneslipusch/video-review
+bun add -g github:hanneslipusch/video-review
 ```
 
 ## Build a review
@@ -46,7 +47,7 @@ To show another recording or a card, give the step a `source` path relative to `
 { "source": "what-changed.png", "chapter": "What changed", "text": "Watch the attachment when the model switches." }
 ```
 
-When you record for the review, time it first: `video-review lines steps.json` prints the seconds each caption needs, so the recording can stay on each step that long.
+When you record for the review, time it first: `video-review lines steps.json` prints the seconds each line needs to be read or spoken, so the recording can stay on each step that long.
 
 Build the review:
 
@@ -64,9 +65,7 @@ The folder also holds `video.mp4` for chat, `frames/` with each step's first, mi
 
 ## Voiceover
 
-With `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey) set, the build speaks each line; without it, the review is captions-only. Pass `--captions-only` for a silent review. Only the caption text goes to the [Gemini TTS API](https://ai.google.dev/gemini-api/docs/speech-generation). Each line's speech is cached in `~/.cache/video-review/speech`, or under `$XDG_CACHE_HOME`, so a rebuild requests only the lines that changed.
-
-Each step must last as long as its spoken line, so `video-review lines steps.json` prints the seconds each line needs. The voice is part of `video.mp4`.
+With `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey) set, the build speaks each line; without it, the review is captions-only. Pass `--captions-only` for a silent review. Only the caption text goes to the [Gemini TTS API](https://ai.google.dev/gemini-api/docs/speech-generation). Each line's speech is cached in `~/.cache/video-review/speech`, or under `$XDG_CACHE_HOME`, so a rebuild requests only the lines that changed. The voice is part of `video.mp4`.
 
 ## Develop
 

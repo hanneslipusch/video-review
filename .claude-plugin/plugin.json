@@ -1,6 +1,6 @@
 {
   "name": "video-review",
-  "version": "0.4.2",
-  "description": "Turn a screen recording and timed observations into a captioned review page.",
+  "version": "0.5.0",
+  "description": "Turn an agent's screen recording into a narrated review video.",
   "author": { "name": "Hannes Lipusch" }
 }
