@@ -12,8 +12,7 @@ test('an unchanged line reuses its cached speech without calling Gemini', async 
     const wav = Buffer.from('RIFF\0\0\0\0WAVEcached');
     await mkdir(dirname(cachedSpeech('The list kept both items.')), { recursive: true });
     await writeFile(cachedSpeech('The list kept both items.'), wav);
-    await speak('The list kept both items.', join(dir, 'out.wav'), 'invalid-key');
-    expect(await readFile(join(dir, 'out.wav'))).toEqual(wav);
+    expect(await readFile(await speak('The list kept both items.', 'invalid-key'))).toEqual(wav);
     expect(cachedSpeech('The list kept one item.')).not.toBe(cachedSpeech('The list kept both items.'));
   } finally {
     if (previous === undefined) delete process.env.XDG_CACHE_HOME; else process.env.XDG_CACHE_HOME = previous;

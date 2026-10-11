@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { parseReview, parseLines, pace, chaptersVtt, renderPlayer, vttTime, vtt } from './contract';
+import { parseReview, parseLines, pace, chaptersVtt, renderPlayer, vtt } from './contract';
 
 test('wrong intervals fail before paid speech or evidence writes', () => {
   const good = { start: 0, end: 2, chapter: 'Saved value', text: 'Saved.' };
@@ -15,9 +15,8 @@ test('literal template tokens and dollar sequences cannot corrupt the player', (
 });
 
 test('VTT tracks preserve optional cue IDs, millisecond rounding and payloads', () => {
-  expect(vttTime(86401.025)).toBe('24:00:01.025');
-  expect(vtt([{ id: 1, start: 2, end: 8.3001, text: 'speech/1.m4a' }, { start: 8.3001, end: 10, text: 'thumbnails.jpg#xywh=0,0,320,240' }]))
-    .toBe('WEBVTT\n\n1\n00:00:02.000 --> 00:00:08.300\nspeech/1.m4a\n\n00:00:08.300 --> 00:00:10.000\nthumbnails.jpg#xywh=0,0,320,240\n');
+  expect(vtt([{ id: 1, start: 2, end: 8.3001, text: 'speech/1.m4a' }, { start: 8.3001, end: 86401.025, text: 'thumbnails.jpg#xywh=0,0,320,240' }]))
+    .toBe('WEBVTT\n\n1\n00:00:02.000 --> 00:00:08.300\nspeech/1.m4a\n\n00:00:08.300 --> 24:00:01.025\nthumbnails.jpg#xywh=0,0,320,240\n');
 });
 
 test('chapters reach the end of the media, so the player adds no unlabelled gap segment', () => {
@@ -32,7 +31,6 @@ test('long chapter titles fail with the step and limit before building', () => {
   expect(parseReview({ title: 'Review', steps: [step] }, 2).steps[0]!.chapter).toBe(step.chapter);
   expect(() => parseReview({ title: 'Review', steps: [step, { ...step, start: 1, end: 2, chapter: 'W'.repeat(21) }] }, 2)).toThrow('Step 2: chapter must be one line of 1–20 characters');
 });
-
 
 test('a step shows only its own footage, and the build names every step too short for its line', () => {
   const step = { start: 0, end: 4, chapter: 'Saved value', text: 'The saved value appeared.' };
