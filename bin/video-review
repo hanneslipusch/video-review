@@ -430,8 +430,6 @@ async function build(video, input, destination, key) {
         `${captioned},select='${picks.join("+")}',scale='min(960,iw)':-2,tile=3x1:padding=8:color=white`,
         "-fps_mode",
         "vfr",
-        "-pix_fmt",
-        "yuvj420p",
         "-q:v",
         "3",
         "-start_number",
@@ -442,7 +440,7 @@ async function build(video, input, destination, key) {
     for (const [index] of timeline.entries())
       if (!(await stat(join2(output, "frames", `${index + 1}.jpg`)).catch(() => null))?.size)
         throw new Error(`Frames for step ${index + 1} are missing.`);
-    await run(["ffmpeg", "-v", "error", "-ss", String(timeline[0].until - 0.1), "-i", "video.mp4", "-frames:v", "1", "-pix_fmt", "yuvj420p", "-q:v", "2", "poster.jpg"], output);
+    await run(["ffmpeg", "-v", "error", "-ss", String(timeline[0].until - 0.1), "-i", "video.mp4", "-frames:v", "1", "-update", "1", "-q:v", "2", "poster.jpg"], output);
     const count = Math.ceil(total / 2), columns = Math.min(10, count), rows = Math.ceil(count / columns);
     const tileHeight = 2 * Math.round(160 * HEIGHT / WIDTH);
     await run([
@@ -455,8 +453,8 @@ async function build(video, input, destination, key) {
       `fps=1/2:start_time=0:round=up,scale=320:${tileHeight},tile=${columns}x${rows}`,
       "-frames:v",
       "1",
-      "-pix_fmt",
-      "yuvj420p",
+      "-update",
+      "1",
       "-threads",
       "1",
       "-q:v",
@@ -503,8 +501,8 @@ async function frames(video, destination) {
   const output = resolve(destination);
   const { seconds } = await probe(await realpath(video), true);
   await mkdir2(output, { recursive: true });
-  const sample = `fps=${1 / FRAME_STEP}:start_time=0,trim=end_frame=${Math.floor(seconds / FRAME_STEP) + 1}`;
-  await run(["ffmpeg", "-v", "error", "-y", "-reinit_filter:v", "0", "-i", video, "-vf", sample, "-pix_fmt", "yuvj420p", "-q:v", "3", join2(output, "frame-%d.jpg")]);
+  const sample = `fps=${1 / FRAME_STEP}:start_time=0,trim=end_frame=${Math.floor(seconds / FRAME_STEP) + 1},format=yuv420p`;
+  await run(["ffmpeg", "-v", "error", "-y", "-reinit_filter:v", "0", "-i", video, "-vf", sample, "-q:v", "3", join2(output, "frame-%d.jpg")]);
   await run([
     "ffmpeg",
     "-v",
@@ -516,8 +514,6 @@ async function frames(video, destination) {
     video,
     "-vf",
     `${sample},scale=480:-2,` + "pad=iw:ih+22:0:0:white,drawtext=text='%{pts\\:hms}':fontsize=18:x=4:y=h-20:fontcolor=black,tile=3x4:padding=4:color=white",
-    "-pix_fmt",
-    "yuvj420p",
     "-q:v",
     "3",
     join2(output, "sheet-%d.jpg")

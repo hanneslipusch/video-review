@@ -166,15 +166,15 @@ async function build(video: string, input: string, destination: string, key: str
     for (let first = 0; first < timeline.length; first += 33) {
       const picks = timeline.slice(first, first + 33).flatMap(s => [s.at + 0.1, (s.at + s.until) / 2, s.until - 1 / FPS].map(t => `eq(n,${Math.round(t * FPS)})`));
       await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `${captioned},select='${picks.join('+')}',scale='min(960,iw)':-2,tile=3x1:padding=8:color=white`,
-        '-fps_mode', 'vfr', '-pix_fmt', 'yuvj420p', '-q:v', '3', '-start_number', String(first + 1), join('frames', '%d.jpg')], output);
+        '-fps_mode', 'vfr', '-q:v', '3', '-start_number', String(first + 1), join('frames', '%d.jpg')], output);
     }
     for (const [index] of timeline.entries())
       if (!(await stat(join(output, 'frames', `${index + 1}.jpg`)).catch(() => null))?.size) throw new Error(`Frames for step ${index + 1} are missing.`);
-    await run(['ffmpeg', '-v', 'error', '-ss', String(timeline[0]!.until - 0.1), '-i', 'video.mp4', '-frames:v', '1', '-pix_fmt', 'yuvj420p', '-q:v', '2', 'poster.jpg'], output);
+    await run(['ffmpeg', '-v', 'error', '-ss', String(timeline[0]!.until - 0.1), '-i', 'video.mp4', '-frames:v', '1', '-update', '1', '-q:v', '2', 'poster.jpg'], output);
     const count = Math.ceil(total / 2), columns = Math.min(10, count), rows = Math.ceil(count / columns);
     const tileHeight = 2 * Math.round(160 * HEIGHT / WIDTH);
     await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `fps=1/2:start_time=0:round=up,scale=320:${tileHeight},tile=${columns}x${rows}`,
-      '-frames:v', '1', '-pix_fmt', 'yuvj420p', '-threads', '1', '-q:v', '2', 'thumbnails.jpg'], output);
+      '-frames:v', '1', '-update', '1', '-threads', '1', '-q:v', '2', 'thumbnails.jpg'], output);
     if (!(await stat(join(output, 'thumbnails.jpg'))).size) throw new Error('Thumbnail sprite is empty.');
     await writeFile(join(output, 'thumbnails.vtt'), vtt(Array.from({ length: count }, (_, i) => ({
       start: i * 2, end: Math.min(total, (i + 1) * 2), text: `thumbnails.jpg#xywh=${(i % columns) * 320},${Math.floor(i / columns) * tileHeight},320,${tileHeight}` }))));
@@ -208,12 +208,12 @@ async function frames(video: string, destination: string) {
   const { seconds } = await probe(await realpath(video), true);
   await mkdir(output, { recursive: true });
   // The fps filter pads past the end; stop at the last timestamp inside the recording.
-  const sample = `fps=${1 / FRAME_STEP}:start_time=0,trim=end_frame=${Math.floor(seconds / FRAME_STEP) + 1}`;
-  await run(['ffmpeg', '-v', 'error', '-y', '-reinit_filter:v', '0', '-i', video, '-vf', sample, '-pix_fmt', 'yuvj420p', '-q:v', '3', join(output, 'frame-%d.jpg')]);
+  const sample = `fps=${1 / FRAME_STEP}:start_time=0,trim=end_frame=${Math.floor(seconds / FRAME_STEP) + 1},format=yuv420p`;
+  await run(['ffmpeg', '-v', 'error', '-y', '-reinit_filter:v', '0', '-i', video, '-vf', sample, '-q:v', '3', join(output, 'frame-%d.jpg')]);
   // One overview image per 12 frames, each labelled with its time: https://ffmpeg.org/ffmpeg-filters.html#drawtext-1
   await run(['ffmpeg', '-v', 'error', '-y', '-reinit_filter:v', '0', '-i', video, '-vf', `${sample},scale=480:-2,`
     + "pad=iw:ih+22:0:0:white,drawtext=text='%{pts\\:hms}':fontsize=18:x=4:y=h-20:fontcolor=black,tile=3x4:padding=4:color=white",
-    '-pix_fmt', 'yuvj420p', '-q:v', '3', join(output, 'sheet-%d.jpg')]);
+    '-q:v', '3', join(output, 'sheet-%d.jpg')]);
   const files = await readdir(output);
   const written = files.filter(name => /^frame-\d+\.jpg$/.test(name));
   for (const name of written) {
