@@ -2,9 +2,8 @@
 // @bun
 
 // cli.ts
-import { mkdir as mkdir2, mkdtemp, readdir, realpath, rename as rename2, rm, readFile, writeFile as writeFile2, stat } from "fs/promises";
+import { mkdir as mkdir2, readdir, realpath, rename as rename2, rm, readFile, writeFile as writeFile2, stat } from "fs/promises";
 import { basename, dirname as dirname2, join as join2, resolve } from "path";
-import { tmpdir } from "os";
 import { createHash as createHash2 } from "crypto";
 import { createReadStream } from "fs";
 
@@ -110,7 +109,7 @@ dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:10px 0
 `;
 
 // voiceover.ts
-import { copyFile, mkdir, rename, writeFile } from "fs/promises";
+import { mkdir, rename, writeFile } from "fs/promises";
 import { createHash } from "crypto";
 import { homedir } from "os";
 import { dirname, join } from "path";
@@ -120,14 +119,10 @@ function cachedSpeech(text) {
   const hash = createHash("sha256").update(JSON.stringify([tts.model, tts.voice, style, text])).digest("hex");
   return join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "video-review", "speech", `${hash}.wav`);
 }
-async function speak(text, path, key) {
+async function speak(text, key) {
   const cached = cachedSpeech(text);
-  try {
-    return await copyFile(cached, path);
-  } catch (error) {
-    if (error.code !== "ENOENT")
-      throw error;
-  }
+  if (await Bun.file(cached).exists())
+    return cached;
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
     method: "POST",
     headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
@@ -167,7 +162,7 @@ async function speak(text, path, key) {
   await mkdir(dirname(cached), { recursive: true });
   await writeFile(`${cached}.${process.pid}`, wav);
   await rename(`${cached}.${process.pid}`, cached);
-  await copyFile(cached, path);
+  return cached;
 }
 
 // cli.ts
@@ -386,7 +381,7 @@ async function build(video, input, destination, key) {
   let complete = false;
   try {
     await mkdir2(join2(output, "frames"));
-    const lengths = [];
+    const speech = [], lengths = [];
     for (const [index, step] of review.steps.entries()) {
       if (!key) {
         lengths.push(0);
@@ -394,8 +389,8 @@ async function build(video, input, destination, key) {
       }
       process.stderr.write(`Voiceover ${index + 1}/${review.steps.length}
 `);
-      await speak(step.text, join2(output, `speech-${index}.wav`), key);
-      lengths.push((await probe(join2(output, `speech-${index}.wav`))).seconds);
+      speech.push(await speak(step.text, key));
+      lengths.push((await probe(speech[index])).seconds);
     }
     const timeline = pace(review.steps, lengths);
     const total = timeline.at(-1).until;
@@ -404,9 +399,8 @@ async function build(video, input, destination, key) {
     const args = ["ffmpeg", "-v", "error"];
     for (const media of sources)
       args.push(...media.image ? ["-loop", "1", "-framerate", "30"] : [], "-reinit_filter:v", "0", "-i", media.path);
-    if (voiceover)
-      for (const [index] of timeline.entries())
-        args.push("-i", join2(output, `speech-${index}.wav`));
+    for (const path of speech)
+      args.push("-i", path);
     const width = 1920, height = 1080;
     const filters = [];
     for (const [inputIndex, media] of sources.entries()) {
@@ -421,9 +415,6 @@ async function build(video, input, destination, key) {
     }
     filters.push(`${timeline.map((_, i) => `[v${i}]${voiceover ? `[a${i}]` : ""}`).join("")}concat=n=${timeline.length}:v=1:a=${voiceover ? 1 : 0}[v]${voiceover ? "[a]" : ""}`);
     await run([...args, "-filter_complex_threads", "2", "-filter_complex", filters.join(";"), "-map", "[v]", ...voiceover ? ["-map", "[a]"] : ["-an"], "-c:v", "libx264", "-threads", "2", "-preset", "fast", "-crf", "24", "-pix_fmt", "yuv420p", ...voiceover ? ["-c:a", "aac", "-b:a", "96k"] : [], "-movflags", "+faststart", videoPath]);
-    for (const [index] of timeline.entries())
-      if (voiceover)
-        await rm(join2(output, `speech-${index}.wav`));
     const rendered = await probe(videoPath, true);
     if (Math.abs(rendered.seconds - total) > 0.1)
       throw new Error(`Rendered duration ${rendered.seconds.toFixed(3)}s differs from the planned ${total.toFixed(3)}s. The recording may change frame properties midstream.`);
@@ -505,22 +496,10 @@ async function build(video, input, destination, key) {
   }
 }
 async function lines(input, key) {
-  const texts = parseLines(JSON.parse(await readFile(input, "utf8")));
-  const scratch = await mkdtemp(join2(tmpdir(), "video-review-lines-"));
-  try {
-    const seconds = [];
-    for (const [index, text] of texts.entries()) {
-      if (!key) {
-        seconds.push(lineSeconds(text, 0));
-        continue;
-      }
-      await speak(text, join2(scratch, `${index}.wav`), key);
-      seconds.push(lineSeconds(text, (await probe(join2(scratch, `${index}.wav`))).seconds));
-    }
-    console.log(JSON.stringify({ seconds: seconds.map((s) => Math.ceil(s * 10) / 10) }));
-  } finally {
-    await rm(scratch, { recursive: true, force: true });
-  }
+  const seconds = [];
+  for (const text of parseLines(JSON.parse(await readFile(input, "utf8"))))
+    seconds.push(lineSeconds(text, key ? (await probe(await speak(text, key))).seconds : 0));
+  console.log(JSON.stringify({ seconds: seconds.map((s) => Math.ceil(s * 10) / 10) }));
 }
 async function frames(video, destination) {
   requireFFmpeg();

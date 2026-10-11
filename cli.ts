@@ -1,7 +1,6 @@
 #!/usr/bin/env bun
-import { mkdir, mkdtemp, readdir, realpath, rename, rm, readFile, writeFile, stat } from 'node:fs/promises';
+import { mkdir, readdir, realpath, rename, rm, readFile, writeFile, stat } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { assets, template } from './assets.generated';
@@ -125,12 +124,12 @@ async function build(video: string, input: string, destination: string, key: str
   let complete = false;
   try {
     await mkdir(join(output, 'frames'));
-    const lengths: number[] = [];
+    const speech: string[] = [], lengths: number[] = [];
     for (const [index, step] of review.steps.entries()) {
       if (!key) { lengths.push(0); continue; }
       process.stderr.write(`Voiceover ${index + 1}/${review.steps.length}\n`);
-      await speak(step.text, join(output, `speech-${index}.wav`), key);
-      lengths.push((await probe(join(output, `speech-${index}.wav`))).seconds);
+      speech.push(await speak(step.text, key));
+      lengths.push((await probe(speech[index]!)).seconds);
     }
     const timeline = pace(review.steps, lengths);
     const total = timeline.at(-1)!.until;
@@ -139,7 +138,7 @@ async function build(video: string, input: string, destination: string, key: str
     const sources = [...media.values()];
     const args = ['ffmpeg', '-v', 'error'];
     for (const media of sources) args.push(...(media.image ? ['-loop', '1', '-framerate', '30'] : []), '-reinit_filter:v', '0', '-i', media.path);
-    if (voiceover) for (const [index] of timeline.entries()) args.push('-i', join(output, `speech-${index}.wav`));
+    for (const path of speech) args.push('-i', path);
     // A 16:9 frame fills common screens in fullscreen; every source fits inside it.
     const width = 1920, height = 1080;
     const filters: string[] = [];
@@ -156,7 +155,6 @@ async function build(video: string, input: string, destination: string, key: str
     }
     filters.push(`${timeline.map((_, i) => `[v${i}]${voiceover ? `[a${i}]` : ''}`).join('')}concat=n=${timeline.length}:v=1:a=${voiceover ? 1 : 0}[v]${voiceover ? '[a]' : ''}`);
     await run([...args, '-filter_complex_threads', '2', '-filter_complex', filters.join(';'), '-map', '[v]', ...(voiceover ? ['-map', '[a]'] : ['-an']), '-c:v', 'libx264', '-threads', '2', '-preset', 'fast', '-crf', '24', '-pix_fmt', 'yuv420p', ...(voiceover ? ['-c:a', 'aac', '-b:a', '96k'] : []), '-movflags', '+faststart', videoPath]);
-    for (const [index] of timeline.entries()) if (voiceover) await rm(join(output, `speech-${index}.wav`));
     const rendered = await probe(videoPath, true);
     if (Math.abs(rendered.seconds - total) > 0.1)
       throw new Error(`Rendered duration ${rendered.seconds.toFixed(3)}s differs from the planned ${total.toFixed(3)}s. The recording may change frame properties midstream.`);
@@ -200,20 +198,11 @@ async function build(video: string, input: string, destination: string, key: str
 }
 
 async function lines(input: string, key: string | undefined) {
-  const texts = parseLines(JSON.parse(await readFile(input, 'utf8')));
-  const scratch = await mkdtemp(join(tmpdir(), 'video-review-lines-'));
-  try {
-    const seconds: number[] = [];
-    for (const [index, text] of texts.entries()) {
-      if (!key) { seconds.push(lineSeconds(text, 0)); continue; }
-      await speak(text, join(scratch, `${index}.wav`), key);
-      seconds.push(lineSeconds(text, (await probe(join(scratch, `${index}.wav`))).seconds));
-    }
-    // Round up so a recording that waits this long still covers the line.
-    console.log(JSON.stringify({ seconds: seconds.map((s) => Math.ceil(s * 10) / 10) }));
-  } finally {
-    await rm(scratch, { recursive: true, force: true });
-  }
+  const seconds: number[] = [];
+  for (const text of parseLines(JSON.parse(await readFile(input, 'utf8'))))
+    seconds.push(lineSeconds(text, key ? (await probe(await speak(text, key))).seconds : 0));
+  // Round up so a recording that waits this long still covers the line.
+  console.log(JSON.stringify({ seconds: seconds.map((s) => Math.ceil(s * 10) / 10) }));
 }
 
 async function frames(video: string, destination: string) {

@@ -1,4 +1,4 @@
-import { copyFile, mkdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -12,13 +12,10 @@ export function cachedSpeech(text: string): string {
   return join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'video-review', 'speech', `${hash}.wav`);
 }
 
-export async function speak(text: string, path: string, key: string): Promise<void> {
+// Returns the cached WAV path, requesting Gemini only for a line not spoken before.
+export async function speak(text: string, key: string): Promise<string> {
   const cached = cachedSpeech(text);
-  try {
-    return await copyFile(cached, path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
+  if (await Bun.file(cached).exists()) return cached;
   // REST schema and WAV format: https://ai.google.dev/gemini-api/docs/speech-generation
   const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
     method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
@@ -53,5 +50,5 @@ export async function speak(text: string, path: string, key: string): Promise<vo
   await mkdir(dirname(cached), { recursive: true });
   await writeFile(`${cached}.${process.pid}`, wav);
   await rename(`${cached}.${process.pid}`, cached);
-  await copyFile(cached, path);
+  return cached;
 }
