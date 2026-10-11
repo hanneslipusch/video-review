@@ -4,7 +4,6 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { spawn } from 'node:child_process';
 import { assets, template } from './assets.generated';
 import { speak, tts } from './voiceover';
 import { parseArgs } from 'node:util';
@@ -68,18 +67,11 @@ function requireFFmpeg() {
     if (!Bun.which(tool)) throw new Error(`${tool} not found on PATH. Install FFmpeg: https://ffmpeg.org/download.html`);
 }
 
-async function run(command: string[], cwd?: string): Promise<string> {
-  return await new Promise<string>((resolve, reject) => {
-    const child = spawn(command[0]!, command.slice(1), { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
-    const stdout: Buffer[] = [], stderr: Buffer[] = [];
-    child.stdout.on('data', chunk => stdout.push(chunk));
-    child.stderr.on('data', chunk => stderr.push(chunk));
-    child.on('error', reject);
-    child.on('close', code => {
-      if (code !== 0) reject(new Error(`${command[0]} failed (${code}): ${Buffer.concat(stderr).toString().trim()}`));
-      else resolve(Buffer.concat(stdout).toString());
-    });
-  });
+async function run(command: string[], cwd = '.'): Promise<string> {
+  const child = Bun.spawn(command, { cwd, stdout: 'pipe', stderr: 'pipe' });
+  const [stdout, stderr, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+  if (code !== 0) throw new Error(`${command[0]} failed (${code}): ${stderr.trim()}`);
+  return stdout;
 }
 
 async function probe(path: string, video = false): Promise<{ seconds: number; width: number; height: number }> {
