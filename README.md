@@ -1,6 +1,6 @@
 # video-review
 
-Turn an agent's screen recording into a review page that someone can check in under a minute.
+Turn an agent's screen recording into a narrated review video that someone can check in under a minute.
 
 ![A review page plays LibreChat issue #16636 at 1.5×: before and after the fix side by side, the result up close, and what wasn't checked. Hovering the progress bar previews a step.](docs/demo.gif)
 
@@ -17,10 +17,11 @@ claude plugin marketplace add hanneslipusch/agents
 claude plugin install video-review@hanneslipusch
 ```
 
-For other agents, install the skill with `bunx skills add hanneslipusch/video-review` and the command from a clone:
+For other agents, install the skill and the command:
 
 ```sh
-git clone https://github.com/hanneslipusch/video-review && cd video-review && bun link
+bunx skills add hanneslipusch/video-review
+bun add -g github:hanneslipusch/video-review
 ```
 
 ## Build a review

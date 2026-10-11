@@ -1,6 +1,6 @@
 ---
 name: video-review
-description: Build a captioned review video from recordings, screenshots and clips you make. Use for pull request evidence, demos and bug reports.
+description: Build a narrated review video from recordings, screenshots and clips you make. Use for pull request evidence, demos and bug reports.
 ---
 
 # Video review

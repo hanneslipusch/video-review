@@ -1,7 +1,7 @@
 {
   "name": "video-review",
   "version": "0.4.2",
-  "description": "Turn a screen recording and timed observations into a captioned review page.",
+  "description": "Turn an agent's screen recording into a narrated review video.",
   "repository": "github:hanneslipusch/video-review",
   "license": "MIT",
   "type": "module",

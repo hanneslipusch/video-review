@@ -217,7 +217,8 @@ async function lines(input: string, key: string | undefined) {
       await speak(text, join(scratch, `${index}.wav`), key);
       seconds.push(lineSeconds(text, (await probe(join(scratch, `${index}.wav`))).seconds));
     }
-    console.log(JSON.stringify({ seconds }));
+    // Round up so a recording that waits this long still covers the line.
+    console.log(JSON.stringify({ seconds: seconds.map((s) => Math.ceil(s * 10) / 10) }));
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
