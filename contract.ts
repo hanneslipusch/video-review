@@ -5,11 +5,11 @@ export const CHAPTER_LIMIT = 20, FPS = 30;
 // https://partnerhelp.netflixstudios.com/hc/en-us/articles/217350977-English-USA-Timed-Text-Style-Guide
 // https://partnerhelp.netflixstudios.com/hc/en-us/articles/215758617-Timed-Text-Style-Guide-General-Requirements
 const READING_CHARACTERS_PER_SECOND = 17, SHORTEST_LINE_SECONDS = 5 / 6, SPEECH_TAIL_SECONDS = 0.5;
-// An image step has no interval; it shows for as long as its line needs.
-export type Step = { start: number; end: number; chapter: string; text: string; source?: string };
+// An image step has no interval: it carries start 0 and end 1, and shows for as long as its line needs.
+type Step = { start: number; end: number; chapter: string; text: string; source?: string };
 export const isImage = (path: string) => /\.(png|jpe?g)$/i.test(path);
-export type Review = { title: string; steps: Step[] };
-export type Chapter = Step & { at: number; until: number; speechSeconds: number };
+type Review = { title: string; steps: Step[] };
+type Chapter = Step & { at: number; until: number; speechSeconds: number };
 
 export function parseReview(value: unknown, duration: number): Review {
   if (!value || typeof value !== 'object' || !('title' in value) || !('steps' in value))
@@ -42,7 +42,7 @@ export function parseReview(value: unknown, duration: number): Review {
     if (typeof chapter !== 'string' || !chapter.trim() || chapter.length > CHAPTER_LIMIT || /[\r\n\u0000-\u001f]|-->/.test(chapter))
       throw new Error(`Step ${index + 1}: chapter must be one line of 1–${CHAPTER_LIMIT} characters without VTT delimiters.`);
     if (source === undefined) previousEnd = end;
-    return { start, end, chapter: chapter.trim(), text: (text as string).trim(), ...(source === undefined ? {} : { source }) };
+    return { start, end, chapter: chapter.trim(), text: text.trim(), ...(source === undefined ? {} : { source }) };
   });
   return { title: value.title.trim(), steps };
 }
@@ -71,9 +71,7 @@ export function pace(steps: Step[], speech: number[]): Chapter[] {
   let at = 0;
   const short: string[] = [];
   const chapters = steps.map((step, index) => {
-    const speechSeconds = speech[index];
-    if (speechSeconds === undefined || !Number.isFinite(speechSeconds) || speechSeconds < 0)
-      throw new Error(`Missing speech duration for step ${index + 1}.`);
+    const speechSeconds = speech[index]!;
     const needed = lineSeconds(step.text, speechSeconds);
     const footage = step.source !== undefined && isImage(step.source) ? needed : Math.round((step.end - step.start) * FPS) / FPS;
     if (footage < needed - 1e-6) short.push(`Step ${index + 1}: its line needs ${needed.toFixed(1)} s; its footage is ${footage.toFixed(1)} s.`);
@@ -85,7 +83,7 @@ export function pace(steps: Step[], speech: number[]): Chapter[] {
   return chapters;
 }
 
-export function vttTime(seconds: number): string {
+function vttTime(seconds: number): string {
   const milliseconds = Math.round(seconds * 1000);
   const parts = [Math.floor(milliseconds / 3600000), Math.floor(milliseconds / 60000) % 60, Math.floor(milliseconds / 1000) % 60];
   return parts.map(value => String(value).padStart(2, '0')).join(':') + '.' + String(milliseconds % 1000).padStart(3, '0');
@@ -97,9 +95,10 @@ export function vtt(cues: { start: number; end: number; text: string; id?: numbe
 }
 
 export function chaptersVtt(chapters: Chapter[]): string {
+  // Round edges up, so the last chapter reaches the end of the media and the player adds no unlabelled segment.
   const edge = (seconds: number) => Math.ceil(seconds * 1000 - 1e-6) / 1000;
   return vtt(chapters.map((s, i) => ({ id: i + 1, start: edge(s.at), end: edge(s.until), text: s.chapter })));
 }
 
 export const renderPlayer = (template: string, title: string) =>
-  template.replace(/\{\{TITLE\}\}/g, () => Bun.escapeHTML(title));
+  template.replaceAll('{{TITLE}}', () => Bun.escapeHTML(title));

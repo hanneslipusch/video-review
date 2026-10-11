@@ -55,7 +55,7 @@ Success prints one JSON object listing the frames. Read each; if one does not sh
 Exit 0: built, 1: runtime failure, 2: usage.`;
 
 // build and lines decide alike, so lines times each step as the build will play it.
-function speechKey(captionsOnly: boolean) {
+function speechKey(captionsOnly: boolean | undefined) {
   if (captionsOnly) return undefined;
   const key = process.env.GEMINI_API_KEY;
   if (!key) process.stderr.write('No GEMINI_API_KEY, so captions only. Deliver this review, and tell the user to set the key from https://aistudio.google.com/apikey and build again for a voiceover.\n');
@@ -194,6 +194,7 @@ async function build(video: string, input: string, destination: string, key: str
 }
 
 async function lines(input: string, key: string | undefined) {
+  if (key) requireFFmpeg();
   const seconds: number[] = [];
   for (const text of parseLines(JSON.parse(await readFile(input, 'utf8'))))
     seconds.push(lineSeconds(text, key ? (await probe(await speak(text, key))).seconds : 0));
@@ -229,11 +230,9 @@ try {
   if (values.help || !command) {
     console.log(command === 'build' ? buildHelp : help);
   } else if (command === 'build' && video && input && values.out && !extra.length) {
-    await build(video, input, values.out, speechKey(values['captions-only'] === true));
+    await build(video, input, values.out, speechKey(values['captions-only']));
   } else if (command === 'lines' && video && !input && !values.out) {
-    const key = speechKey(values['captions-only'] === true);
-    if (key) requireFFmpeg();
-    await lines(video, key);
+    await lines(video, speechKey(values['captions-only']));
   } else if (command === 'frames' && video && !input && values.out && !values['captions-only']) {
     await frames(video, values.out);
   } else {

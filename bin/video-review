@@ -230,8 +230,6 @@ function pace(steps, speech) {
   const short = [];
   const chapters = steps.map((step, index) => {
     const speechSeconds = speech[index];
-    if (speechSeconds === undefined || !Number.isFinite(speechSeconds) || speechSeconds < 0)
-      throw new Error(`Missing speech duration for step ${index + 1}.`);
     const needed = lineSeconds(step.text, speechSeconds);
     const footage = step.source !== undefined && isImage(step.source) ? needed : Math.round((step.end - step.start) * FPS) / FPS;
     if (footage < needed - 0.000001)
@@ -264,7 +262,7 @@ function chaptersVtt(chapters) {
   const edge = (seconds) => Math.ceil(seconds * 1000 - 0.000001) / 1000;
   return vtt(chapters.map((s, i) => ({ id: i + 1, start: edge(s.at), end: edge(s.until), text: s.chapter })));
 }
-var renderPlayer = (template, title) => template.replace(/\{\{TITLE\}\}/g, () => Bun.escapeHTML(title));
+var renderPlayer = (template, title) => template.replaceAll("{{TITLE}}", () => Bun.escapeHTML(title));
 
 // cli.ts
 var FRAME_STEP = 0.5;
@@ -493,6 +491,8 @@ async function build(video, input, destination, key) {
   }
 }
 async function lines(input, key) {
+  if (key)
+    requireFFmpeg();
   const seconds = [];
   for (const text of parseLines(JSON.parse(await readFile(input, "utf8"))))
     seconds.push(lineSeconds(text, key ? (await probe(await speak(text, key))).seconds : 0));
@@ -537,12 +537,9 @@ try {
   if (values.help || !command) {
     console.log(command === "build" ? buildHelp : help);
   } else if (command === "build" && video && input && values.out && !extra.length) {
-    await build(video, input, values.out, speechKey(values["captions-only"] === true));
+    await build(video, input, values.out, speechKey(values["captions-only"]));
   } else if (command === "lines" && video && !input && !values.out) {
-    const key = speechKey(values["captions-only"] === true);
-    if (key)
-      requireFFmpeg();
-    await lines(video, key);
+    await lines(video, speechKey(values["captions-only"]));
   } else if (command === "frames" && video && !input && values.out && !values["captions-only"]) {
     await frames(video, values.out);
   } else {
