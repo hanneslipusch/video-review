@@ -173,6 +173,7 @@ var PLAYBACK_RATE = 1.5;
 
 // contract.ts
 var CHAPTER_LIMIT = 20;
+var FPS = 30;
 var READING_CHARACTERS_PER_SECOND = 17;
 var SHORTEST_LINE_SECONDS = 5 / 6;
 var SPEECH_TAIL_SECONDS = 0.5;
@@ -223,7 +224,7 @@ function parseLines(value) {
     return text.trim();
   });
 }
-var lineSeconds = (text, speechSeconds) => Math.ceil((speechSeconds > 0 ? speechSeconds + SPEECH_TAIL_SECONDS : Math.max(SHORTEST_LINE_SECONDS, text.length / READING_CHARACTERS_PER_SECOND) * PLAYBACK_RATE) * 30 - 0.000000001) / 30;
+var lineSeconds = (text, speechSeconds) => Math.ceil((speechSeconds > 0 ? speechSeconds + SPEECH_TAIL_SECONDS : Math.max(SHORTEST_LINE_SECONDS, text.length / READING_CHARACTERS_PER_SECOND) * PLAYBACK_RATE) * FPS - 0.000000001) / FPS;
 function pace(steps, speech) {
   let at = 0;
   const short = [];
@@ -232,7 +233,7 @@ function pace(steps, speech) {
     if (speechSeconds === undefined || !Number.isFinite(speechSeconds) || speechSeconds < 0)
       throw new Error(`Missing speech duration for step ${index + 1}.`);
     const needed = lineSeconds(step.text, speechSeconds);
-    const footage = step.source !== undefined && isImage(step.source) ? needed : Math.round((step.end - step.start) * 30) / 30;
+    const footage = step.source !== undefined && isImage(step.source) ? needed : Math.round((step.end - step.start) * FPS) / FPS;
     if (footage < needed - 0.000001)
       short.push(`Step ${index + 1}: its line needs ${needed.toFixed(1)} s; its footage is ${footage.toFixed(1)} s.`);
     const chapter = { ...step, at, until: at + footage, speechSeconds };
@@ -267,6 +268,9 @@ var renderPlayer = (template, title) => template.replace(/\{\{TITLE\}\}/g, () =>
 
 // cli.ts
 var FRAME_STEP = 0.5;
+var PREVIEW_RATE = 2.5;
+var WIDTH = 1920;
+var HEIGHT = 1080;
 var help = `video-review \u2014 turn an existing recording into a captioned review
 
   video-review build <video> <steps.json> --out <directory>
@@ -291,7 +295,7 @@ chapter is a short label of 1\u2013${CHAPTER_LIMIT} characters; text is the capt
 Optional source names another video or a PNG/JPG card, relative to steps.json. Steps without it use <video>
 and stay ordered; other videos use their own clock and may repeat or reorder. An image step has no start or end:
 {"source":"what-changed.png","chapter":"What changed","text":"Watch the attachment when the model switches."}
-Every source fits a 1920\xD71080 frame, with bars where its shape differs.
+Every source fits a ${WIDTH}\xD7${HEIGHT} frame, with bars where its shape differs.
 Seconds refer to the source media clock. Each interval plays at original speed, captioned and spoken
 for its whole length, and must last as long as its line needs: the build names each step that is too short.
 An image step shows for as long as its line needs.
@@ -308,7 +312,6 @@ middle and last frame with the caption as shown.
 Source audio is removed. Inputs are never changed.
 Success prints one JSON object listing the frames. Read each; if one does not show what its caption says, fix steps.json and build again.
 Exit 0: built, 1: runtime failure, 2: usage.`;
-var PREVIEW_RATE = 2.5;
 function speechKey(captionsOnly) {
   if (captionsOnly)
     return;
@@ -348,16 +351,15 @@ async function sha256(path) {
 }
 async function build(video, input, destination, key) {
   requireFFmpeg();
-  const voiceover = key !== undefined;
   const source = await realpath(video);
   const target = resolve(destination);
   const main = await probe(source, true);
   const review = parseReview(JSON.parse(await readFile(input, "utf8")), main.seconds);
   const media = new Map;
-  const stepSources = [];
   for (const [index, step] of review.steps.entries()) {
     const path = step.source === undefined ? source : await realpath(resolve(dirname2(resolve(input)), step.source));
-    if (!media.has(path)) {
+    let entry = media.get(path);
+    if (!entry) {
       const image = isImage(path);
       if (image) {
         const data = JSON.parse(await run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height", "-of", "json", path]));
@@ -365,11 +367,12 @@ async function build(video, input, destination, key) {
         if (!stream?.width || !["png", "mjpeg"].includes(stream.codec_name))
           throw new Error(`Invalid PNG/JPG image: ${basename(path)}`);
       }
-      media.set(path, { path, image, seconds: image ? Infinity : (path === source ? main : await probe(path, true)).seconds, sha256: await sha256(path) });
+      entry = { image, seconds: image ? Infinity : (path === source ? main : await probe(path, true)).seconds, sha256: await sha256(path), steps: [] };
+      media.set(path, entry);
     }
-    if (step.end > media.get(path).seconds)
+    if (step.end > entry.seconds)
       throw new Error(`Step ${index + 1}: end exceeds ${basename(path)} duration.`);
-    stepSources.push(path);
+    entry.steps.push(index);
   }
   await run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=s=2x2:d=0.04", "-c:v", "libx264", "-f", "null", "-"]);
   const existing = await readdir(target).catch(() => null);
@@ -378,7 +381,6 @@ async function build(video, input, destination, key) {
   const output = `${target}.partial-${process.pid}`;
   await mkdir2(dirname2(target), { recursive: true });
   await mkdir2(output);
-  let complete = false;
   try {
     await mkdir2(join2(output, "frames"));
     const speech = [], lengths = [];
@@ -392,38 +394,34 @@ async function build(video, input, destination, key) {
       speech.push(await speak(step.text, key));
       lengths.push((await probe(speech[index])).seconds);
     }
+    const voiceover = key !== undefined;
     const timeline = pace(review.steps, lengths);
     const total = timeline.at(-1).until;
-    const videoPath = join2(output, "video.mp4");
-    const sources = [...media.values()];
     const args = ["ffmpeg", "-v", "error"];
-    for (const media of sources)
-      args.push(...media.image ? ["-loop", "1", "-framerate", "30"] : [], "-reinit_filter:v", "0", "-i", media.path);
+    for (const [path, { image }] of media)
+      args.push(...image ? ["-loop", "1", "-framerate", String(FPS)] : [], "-reinit_filter:v", "0", "-i", path);
     for (const path of speech)
       args.push("-i", path);
-    const width = 1920, height = 1080;
     const filters = [];
-    for (const [inputIndex, media] of sources.entries()) {
-      const indices = stepSources.flatMap((path, i) => path === media.path ? [i] : []);
-      filters.push(`[${inputIndex}:v]split=${indices.length}${indices.map((i) => `[source${i}]`).join("")}`);
-    }
+    for (const [inputIndex, { steps }] of [...media.values()].entries())
+      filters.push(`[${inputIndex}:v]split=${steps.length}${steps.map((i) => `[source${i}]`).join("")}`);
     for (const [index, step] of timeline.entries()) {
       const length = step.until - step.at;
-      filters.push(`[source${index}]trim=start=${step.start}:end=${step.start + length},setpts=PTS-STARTPTS,fps=30,scale=trunc(iw*sar/2)*2:ih,scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,tpad=stop_mode=clone:stop_duration=0.1,trim=duration=${length},setpts=PTS-STARTPTS[v${index}]`);
+      filters.push(`[source${index}]trim=start=${step.start}:end=${step.start + length},setpts=PTS-STARTPTS,fps=${FPS},scale=trunc(iw*sar/2)*2:ih,scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1,tpad=stop_mode=clone:stop_duration=0.1,trim=duration=${length},setpts=PTS-STARTPTS[v${index}]`);
       if (voiceover)
-        filters.push(`[${sources.length + index}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,apad,atrim=duration=${length},asetpts=PTS-STARTPTS[a${index}]`);
+        filters.push(`[${media.size + index}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,apad,atrim=duration=${length},asetpts=PTS-STARTPTS[a${index}]`);
     }
     filters.push(`${timeline.map((_, i) => `[v${i}]${voiceover ? `[a${i}]` : ""}`).join("")}concat=n=${timeline.length}:v=1:a=${voiceover ? 1 : 0}[v]${voiceover ? "[a]" : ""}`);
-    await run([...args, "-filter_complex_threads", "2", "-filter_complex", filters.join(";"), "-map", "[v]", ...voiceover ? ["-map", "[a]"] : ["-an"], "-c:v", "libx264", "-threads", "2", "-preset", "fast", "-crf", "24", "-pix_fmt", "yuv420p", ...voiceover ? ["-c:a", "aac", "-b:a", "96k"] : [], "-movflags", "+faststart", videoPath]);
-    const rendered = await probe(videoPath, true);
-    if (Math.abs(rendered.seconds - total) > 0.1)
-      throw new Error(`Rendered duration ${rendered.seconds.toFixed(3)}s differs from the planned ${total.toFixed(3)}s. The recording may change frame properties midstream.`);
+    await run([...args, "-filter_complex_threads", "2", "-filter_complex", filters.join(";"), "-map", "[v]", ...voiceover ? ["-map", "[a]"] : ["-an"], "-c:v", "libx264", "-threads", "2", "-preset", "fast", "-crf", "24", "-pix_fmt", "yuv420p", ...voiceover ? ["-c:a", "aac", "-b:a", "96k"] : [], "-movflags", "+faststart", join2(output, "video.mp4")]);
+    const rendered = (await probe(join2(output, "video.mp4"), true)).seconds;
+    if (Math.abs(rendered - total) > 0.1)
+      throw new Error(`Rendered duration ${rendered.toFixed(3)}s differs from the planned ${total.toFixed(3)}s. The recording may change frame properties midstream.`);
     await writeFile2(join2(output, "captions.vtt"), vtt(timeline.map((s, i) => ({ id: i + 1, start: s.at, end: s.until, text: s.text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") }))));
     await writeFile2(join2(output, "chapters.vtt"), chaptersVtt(timeline));
     const captioned = "subtitles=captions.vtt";
     await run(["ffmpeg", "-v", "error", "-i", "video.mp4", "-vf", `${captioned},setpts=PTS/${PREVIEW_RATE},fps=10,scale='min(960,iw)':-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, "preview.gif"], output);
     for (let first = 0;first < timeline.length; first += 33) {
-      const picks = timeline.slice(first, first + 33).flatMap((s) => [s.at + 0.1, (s.at + s.until) / 2, s.until - 1 / 30].map((t) => `eq(n,${Math.round(t * 30)})`));
+      const picks = timeline.slice(first, first + 33).flatMap((s) => [s.at + 0.1, (s.at + s.until) / 2, s.until - 1 / FPS].map((t) => `eq(n,${Math.round(t * FPS)})`));
       await run([
         "ffmpeg",
         "-v",
@@ -448,13 +446,13 @@ async function build(video, input, destination, key) {
         throw new Error(`Frames for step ${index + 1} are missing.`);
     await run(["ffmpeg", "-v", "error", "-ss", String(timeline[0].until - 0.1), "-i", "video.mp4", "-frames:v", "1", "-pix_fmt", "yuvj420p", "-q:v", "2", "poster.jpg"], output);
     const count = Math.ceil(total / 2), columns = Math.min(10, count), rows = Math.ceil(count / columns);
-    const tileHeight = 2 * Math.round(160 * rendered.height / rendered.width);
+    const tileHeight = 2 * Math.round(160 * HEIGHT / WIDTH);
     await run([
       "ffmpeg",
       "-v",
       "error",
       "-i",
-      videoPath,
+      "video.mp4",
       "-vf",
       `fps=1/2:start_time=0:round=up,scale=320:${tileHeight},tile=${columns}x${rows}`,
       "-frames:v",
@@ -465,8 +463,8 @@ async function build(video, input, destination, key) {
       "1",
       "-q:v",
       "2",
-      join2(output, "thumbnails.jpg")
-    ]);
+      "thumbnails.jpg"
+    ], output);
     if (!(await stat(join2(output, "thumbnails.jpg"))).size)
       throw new Error("Thumbnail sprite is empty.");
     await writeFile2(join2(output, "thumbnails.vtt"), vtt(Array.from({ length: count }, (_, i) => ({
@@ -476,7 +474,7 @@ async function build(video, input, destination, key) {
     }))));
     const manifest = {
       title: review.title,
-      sources: sources.map(({ path, sha256 }) => ({ file: basename(path), sha256 })),
+      sources: [...media].map(([path, { sha256 }]) => ({ file: basename(path), sha256 })),
       voiceover: voiceover ? tts : null,
       steps: timeline.map(({ start, end, ...step }) => step.source !== undefined && isImage(step.source) ? step : { start, end, ...step })
     };
@@ -488,11 +486,10 @@ async function build(video, input, destination, key) {
     await writeFile2(join2(output, "index.html"), renderPlayer(template, review.title));
     await rm(target, { recursive: true, force: true });
     await rename2(output, target);
-    complete = true;
     console.log(JSON.stringify({ player: join2(target, "index.html"), video: join2(target, "video.mp4"), preview: join2(target, "preview.gif"), frames: timeline.map((_, i) => join2(target, "frames", `${i + 1}.jpg`)) }));
-  } finally {
-    if (!complete)
-      await rm(output, { recursive: true, force: true });
+  } catch (error) {
+    await rm(output, { recursive: true, force: true });
+    throw error;
   }
 }
 async function lines(input, key) {

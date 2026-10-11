@@ -1,6 +1,6 @@
 import { PLAYBACK_RATE } from './rate';
 
-export const CHAPTER_LIMIT = 20;
+export const CHAPTER_LIMIT = 20, FPS = 30;
 // Netflix's adult reading speed and shortest subtitle event, in watching time at PLAYBACK_RATE:
 // https://partnerhelp.netflixstudios.com/hc/en-us/articles/217350977-English-USA-Timed-Text-Style-Guide
 // https://partnerhelp.netflixstudios.com/hc/en-us/articles/215758617-Timed-Text-Style-Guide-General-Requirements
@@ -65,7 +65,7 @@ export function parseLines(value: unknown): string[] {
 
 export const lineSeconds = (text: string, speechSeconds: number) =>
   Math.ceil((speechSeconds > 0 ? speechSeconds + SPEECH_TAIL_SECONDS
-    : Math.max(SHORTEST_LINE_SECONDS, text.length / READING_CHARACTERS_PER_SECOND) * PLAYBACK_RATE) * 30 - 1e-9) / 30;
+    : Math.max(SHORTEST_LINE_SECONDS, text.length / READING_CHARACTERS_PER_SECOND) * PLAYBACK_RATE) * FPS - 1e-9) / FPS;
 
 export function pace(steps: Step[], speech: number[]): Chapter[] {
   let at = 0;
@@ -75,7 +75,7 @@ export function pace(steps: Step[], speech: number[]): Chapter[] {
     if (speechSeconds === undefined || !Number.isFinite(speechSeconds) || speechSeconds < 0)
       throw new Error(`Missing speech duration for step ${index + 1}.`);
     const needed = lineSeconds(step.text, speechSeconds);
-    const footage = step.source !== undefined && isImage(step.source) ? needed : Math.round((step.end - step.start) * 30) / 30;
+    const footage = step.source !== undefined && isImage(step.source) ? needed : Math.round((step.end - step.start) * FPS) / FPS;
     if (footage < needed - 1e-6) short.push(`Step ${index + 1}: its line needs ${needed.toFixed(1)} s; its footage is ${footage.toFixed(1)} s.`);
     const chapter = { ...step, at, until: at + footage, speechSeconds };
     at = chapter.until;
