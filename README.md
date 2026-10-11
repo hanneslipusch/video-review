@@ -47,7 +47,7 @@ To show another recording or a card, give the step a `source` path relative to `
 { "source": "what-changed.png", "chapter": "What changed", "text": "Watch the attachment when the model switches." }
 ```
 
-When you record for the review, time it first: `video-review lines steps.json` prints the seconds each caption needs, so the recording can stay on each step that long.
+When you record for the review, time it first: `video-review lines steps.json` prints the seconds each line needs to be read or spoken, so the recording can stay on each step that long.
 
 Build the review:
 
@@ -65,9 +65,7 @@ The folder also holds `video.mp4` for chat, `frames/` with each step's first, mi
 
 ## Voiceover
 
-With `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey) set, the build speaks each line; without it, the review is captions-only. Pass `--captions-only` for a silent review. Only the caption text goes to the [Gemini TTS API](https://ai.google.dev/gemini-api/docs/speech-generation). Each line's speech is cached in `~/.cache/video-review/speech`, or under `$XDG_CACHE_HOME`, so a rebuild requests only the lines that changed.
-
-Each step must last as long as its spoken line, so `video-review lines steps.json` prints the seconds each line needs. The voice is part of `video.mp4`.
+With `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey) set, the build speaks each line; without it, the review is captions-only. Pass `--captions-only` for a silent review. Only the caption text goes to the [Gemini TTS API](https://ai.google.dev/gemini-api/docs/speech-generation). Each line's speech is cached in `~/.cache/video-review/speech`, or under `$XDG_CACHE_HOME`, so a rebuild requests only the lines that changed. The voice is part of `video.mp4`.
 
 ## Develop
 
