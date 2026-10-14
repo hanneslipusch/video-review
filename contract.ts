@@ -105,14 +105,23 @@ export function chaptersVtt(chapters: Chapter[]): string {
   return vtt(chapters.map((s, i) => ({ id: i + 1, start: edge(s.at), end: edge(s.until), text: s.chapter })));
 }
 
-// One article per chapter, so the player shows the playing chapter's note, or nothing for a chapter without one.
-// Raw HTML shows as text, so a logged <Tag> stays visible. Options: https://bun.com/docs/runtime/markdown
-export function notesHtml(chapters: { at: number; chapter: string; notes?: string }[]): string {
-  if (!chapters.some(c => c.notes !== undefined)) return '';
-  const note = (c: { chapter: string; notes?: string }) => c.notes === undefined ? ''
-    : `<h2>${Bun.escapeHTML(c.chapter)}</h2>${Bun.markdown.html(c.notes, { noHtmlBlocks: true, noHtmlSpans: true, autolinks: true })}`;
-  return `<aside class="notes" aria-label="Notes">${chapters.map(c => `<article data-at="${c.at}"${c.at ? ' hidden' : ''}>${note(c)}</article>`).join('')}</aside>`;
-}
+// A step's note as the page drawn beside its footage. Raw HTML shows as text, so a logged <Tag> stays visible.
+// Options: https://bun.com/docs/runtime/markdown
+export const notePage = (chapter: string, markdown: string, background: string) => `<!doctype html><meta charset="utf-8"><style>
+body{margin:0;padding:24px;font:24px/1.45 system-ui,sans-serif;color:#20302a;background:${background}}
+article{padding:20px 22px;border:2px solid #e1e5e0;border-radius:16px;background:#fff}
+h2{margin:0 0 16px;font-size:20px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5c6a60}
+p,ul,ol,pre,table{margin:0 0 18px}article>:last-child{margin-bottom:0}ul,ol{padding-left:30px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:8px 12px 8px 0;border-bottom:2px solid #e9ece8;text-align:left;vertical-align:top}th{font-weight:600}
+code{font:20px/1.45 ui-monospace,monospace;overflow-wrap:anywhere}pre{padding:10px 12px;border-radius:10px;background:#f3f5f2;white-space:pre-wrap}
+</style><article><h2>${Bun.escapeHTML(chapter)}</h2>${Bun.markdown.html(markdown, { noHtmlBlocks: true, noHtmlSpans: true, autolinks: true })}</article>`;
 
-export const renderPlayer = (template: string, title: string, notes: string) =>
-  template.replace(/\{\{(TITLE|NOTES)\}\}/g, (_, key) => key === 'TITLE' ? Bun.escapeHTML(title) : notes);
+// The page keeps today's player height for a wider frame: 1120 px wide, less its padding, at 16:9.
+export function renderPlayer(template: string, title: string, width: number, height: number) {
+  const divisor = (a: number, b: number): number => b ? divisor(b, a % b) : a;
+  const values: Record<string, string> = {
+    TITLE: Bun.escapeHTML(title), ASPECT: `${width / divisor(width, height)}/${height / divisor(width, height)}`,
+    PAGE: String(Math.round(48 + 1072 * 9 / 16 * width / height)),
+  };
+  return template.replace(/\{\{(TITLE|ASPECT|PAGE)\}\}/g, (_, key: string) => values[key]!);
+}

@@ -6,11 +6,13 @@ import { createReadStream } from 'node:fs';
 import { assets, template } from './assets.generated';
 import { speak, tts } from './voiceover';
 import { parseArgs } from 'node:util';
-import { CHAPTER_LIMIT, FPS, isImage, lineSeconds, notesHtml, parseLines, parseReview, pace, vtt, chaptersVtt, renderPlayer } from './contract';
+import { CHAPTER_LIMIT, FPS, isImage, lineSeconds, notePage, parseLines, parseReview, pace, vtt, chaptersVtt, renderPlayer } from './contract';
 
 const FRAME_STEP = 0.5, PREVIEW_RATE = 2.5;
 // A 16:9 frame fills common screens in fullscreen; every source fits inside it.
 const WIDTH = 1920, HEIGHT = 1080;
+// A review with notes widens its frame by a panel on the right, so the footage keeps its size.
+const NOTE_WIDTH = 640, NOTE_BACKGROUND = '#f7f8f6';
 
 const help = `video-review — turn an existing recording into a captioned review
 
@@ -36,8 +38,9 @@ chapter is a short label of 1–${CHAPTER_LIMIT} characters; text is the caption
 Optional source names another video or a PNG/JPG card, relative to steps.json. Steps without it use <video>
 and stay ordered; other videos use their own clock and may repeat or reorder. An image step has no start or end:
 {"source":"what-changed.png","chapter":"What changed","text":"Watch the attachment when the model switches."}
-Optional notes names a Markdown file, relative to steps.json, that the page shows beside the video while its step plays,
-for what the footage cannot show, such as query counts or logs. Its links must be absolute; timeline.json carries its text.
+Optional notes names a Markdown file, relative to steps.json, drawn in a ${NOTE_WIDTH} px panel right of the footage while
+its step plays, for what the footage cannot show, such as query counts or logs. It needs Chrome, Chromium, Edge or
+Brave outside macOS, must fit ${HEIGHT} px tall, and shows as plain text in timeline.json.
 Every source fits a ${WIDTH}×${HEIGHT} frame, with bars where its shape differs.
 Seconds refer to the source media clock. Each interval plays at original speed, captioned and spoken
 for its whole length, and must last as long as its line needs: the build names each step that is too short.
@@ -117,7 +120,7 @@ async function build(video: string, input: string, destination: string, key: str
       throw new Error(`Step ${index + 1}: end exceeds ${basename(path)} duration.`);
     entry.steps.push(index);
   }
-  // From here on a step's notes hold the Markdown itself, which timeline.json and the page carry.
+  // From here on a step's notes hold the Markdown itself, which the panel draws and timeline.json carries.
   for (const [index, step] of review.steps.entries()) {
     if (step.notes === undefined) continue;
     const path = resolve(dirname(resolve(input)), step.notes);
@@ -135,6 +138,8 @@ async function build(video: string, input: string, destination: string, key: str
   await mkdir(output);
   try {
     await mkdir(join(output, 'frames'));
+    const panels = await drawNotes(review.steps, output);
+    const width = panels.some(Boolean) ? WIDTH + NOTE_WIDTH : WIDTH;
     const speech: string[] = [], lengths: number[] = [];
     for (const [index, step] of review.steps.entries()) {
       if (!key) { lengths.push(0); continue; }
@@ -149,6 +154,12 @@ async function build(video: string, input: string, destination: string, key: str
     // -reinit_filter 0 keeps every interval when color metadata changes midstream: https://ffmpeg.org/ffmpeg.html#Advanced-options
     for (const [path, { image }] of media) args.push(...(image ? ['-loop', '1', '-framerate', String(FPS)] : []), '-reinit_filter:v', '0', '-i', path);
     for (const path of speech) args.push('-i', path);
+    const panelInputs = new Map<number, number>();
+    for (const [index, path] of panels.entries()) {
+      if (!path) continue;
+      panelInputs.set(index, media.size + speech.length + panelInputs.size);
+      args.push('-loop', '1', '-framerate', String(FPS), '-i', path);
+    }
     const filters: string[] = [];
     // One encode avoids concatenated AAC priming offsets: https://ffmpeg.org/ffmpeg-filters.html#concat
     for (const [inputIndex, { steps }] of [...media.values()].entries())
@@ -156,7 +167,10 @@ async function build(video: string, input: string, destination: string, key: str
     for (const [index, step] of timeline.entries()) {
       const length = step.until - step.at;
       // Non-square pixels widen to their display shape first; the clone pad only fills a frame lost to rounding.
-      filters.push(`[source${index}]trim=start=${step.start}:end=${step.start + length},setpts=PTS-STARTPTS,fps=${FPS},scale=trunc(iw*sar/2)*2:ih,scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1,tpad=stop_mode=clone:stop_duration=0.1,trim=duration=${length},setpts=PTS-STARTPTS[v${index}]`);
+      const footage = `[source${index}]trim=start=${step.start}:end=${step.start + length},setpts=PTS-STARTPTS,fps=${FPS},scale=trunc(iw*sar/2)*2:ih,scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1,tpad=stop_mode=clone:stop_duration=0.1,trim=duration=${length},setpts=PTS-STARTPTS`;
+      const panel = panelInputs.get(index);
+      if (panel !== undefined) filters.push(`${footage}[f${index}]`, `[${panel}:v]setsar=1,trim=duration=${length},setpts=PTS-STARTPTS[n${index}]`, `[f${index}][n${index}]hstack[v${index}]`);
+      else filters.push(`${footage}${width > WIDTH ? `,pad=${width}:${HEIGHT}:0:0:${NOTE_BACKGROUND}` : ''}[v${index}]`);
       if (voiceover) filters.push(`[${media.size + index}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,apad,atrim=duration=${length},asetpts=PTS-STARTPTS[a${index}]`);
     }
     filters.push(`${timeline.map((_, i) => `[v${i}]${voiceover ? `[a${i}]` : ''}`).join('')}concat=n=${timeline.length}:v=1:a=${voiceover ? 1 : 0}[v]${voiceover ? '[a]' : ''}`);
@@ -168,31 +182,32 @@ async function build(video: string, input: string, destination: string, key: str
     await writeFile(join(output, 'chapters.vtt'), chaptersVtt(timeline));
     // GitHub plays only videos uploaded in its web editor, so pages embed this instead: https://ffmpeg.org/ffmpeg-filters.html#subtitles
     const captioned = 'subtitles=captions.vtt';
-    await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `${captioned},setpts=PTS/${PREVIEW_RATE},fps=10,scale='min(960,iw)':-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, 'preview.gif'], output);
+    await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `${captioned},setpts=PTS/${PREVIEW_RATE},fps=10,scale=-2:'min(540,ih)':flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, 'preview.gif'], output);
     // Three frames per step, as a viewer sees them: the start, the middle and the last.
     // The start is 0.1 s in, since libass times captions to 1/100 s and can show the previous one first.
     // ffmpeg rejects an expression of more than 100 terms (stack_index in libavutil/eval.c), so 33 steps per run.
     for (let first = 0; first < timeline.length; first += 33) {
       const picks = timeline.slice(first, first + 33).flatMap(s => [s.at + 0.1, (s.at + s.until) / 2, s.until - 1 / FPS].map(t => `eq(n,${Math.round(t * FPS)})`));
-      await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `${captioned},select='${picks.join('+')}',scale='min(960,iw)':-2,tile=3x1:padding=8:color=white`,
+      await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `${captioned},select='${picks.join('+')}',scale=-2:'min(540,ih)',tile=3x1:padding=8:color=white`,
         '-fps_mode', 'vfr', '-q:v', '3', '-start_number', String(first + 1), join('frames', '%d.jpg')], output);
     }
     for (const [index] of timeline.entries())
       if (!(await stat(join(output, 'frames', `${index + 1}.jpg`)).catch(() => null))?.size) throw new Error(`Frames for step ${index + 1} are missing.`);
     await run(['ffmpeg', '-v', 'error', '-ss', String(timeline[0]!.until - 0.1), '-i', 'video.mp4', '-frames:v', '1', '-update', '1', '-q:v', '2', 'poster.jpg'], output);
     const count = Math.ceil(total / 2), columns = Math.min(10, count), rows = Math.ceil(count / columns);
-    const tileHeight = 2 * Math.round(160 * HEIGHT / WIDTH);
-    await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `fps=1/2:start_time=0:round=up,scale=320:${tileHeight},tile=${columns}x${rows}`,
+    const tileHeight = 180, tileWidth = 2 * Math.round(tileHeight / 2 * width / HEIGHT);
+    await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `fps=1/2:start_time=0:round=up,scale=${tileWidth}:${tileHeight},tile=${columns}x${rows}`,
       '-frames:v', '1', '-update', '1', '-threads', '1', '-q:v', '2', 'thumbnails.jpg'], output);
     if (!(await stat(join(output, 'thumbnails.jpg'))).size) throw new Error('Thumbnail sprite is empty.');
     await writeFile(join(output, 'thumbnails.vtt'), vtt(Array.from({ length: count }, (_, i) => ({
-      start: i * 2, end: Math.min(total, (i + 1) * 2), text: `thumbnails.jpg#xywh=${(i % columns) * 320},${Math.floor(i / columns) * tileHeight},320,${tileHeight}` }))));
+      start: i * 2, end: Math.min(total, (i + 1) * 2), text: `thumbnails.jpg#xywh=${(i % columns) * tileWidth},${Math.floor(i / columns) * tileHeight},${tileWidth},${tileHeight}` }))));
     const manifest = { title: review.title, sources: [...media].map(([path, { sha256 }]) => ({ file: basename(path), sha256 })), voiceover: voiceover ? tts : null,
       steps: timeline.map(({ start, end, ...step }) => step.source !== undefined && isImage(step.source) ? step : { start, end, ...step }) };
     await writeFile(join(output, 'timeline.json'), JSON.stringify(manifest, null, 2) + '\n');
     await mkdir(join(output, 'vendor'));
     for (const [name, content] of Object.entries(assets)) await writeFile(join(output, 'vendor', name), Buffer.from(content, 'base64'));
-    await writeFile(join(output, 'index.html'), renderPlayer(template, review.title, notesHtml(timeline)));
+    await writeFile(join(output, 'index.html'), renderPlayer(template, review.title, width, HEIGHT));
+    await rm(join(output, 'notes'), { recursive: true, force: true });
     await rm(target, { recursive: true, force: true });
     await rename(output, target);
     console.log(JSON.stringify({ player: join(target, 'index.html'), video: join(target, 'video.mp4'), preview: join(target, 'preview.gif'), frames: timeline.map((_, i) => join(target, 'frames', `${i + 1}.jpg`)) }));
@@ -200,6 +215,28 @@ async function build(video: string, input: string, destination: string, key: str
     await rm(output, { recursive: true, force: true });
     throw error;
   }
+}
+
+// Each note becomes a NOTE_WIDTH×HEIGHT image, drawn by Bun's headless browser: https://bun.com/docs/runtime/webview
+async function drawNotes(steps: { chapter: string; notes?: string }[], output: string): Promise<(string | undefined)[]> {
+  if (steps.every(step => step.notes === undefined)) return [];
+  await mkdir(join(output, 'notes'));
+  await using view = new Bun.WebView({ width: NOTE_WIDTH, height: HEIGHT });
+  // Chrome takes the constructor's size as its window, so the page would get less; resize sets the page itself,
+  // once a page is open.
+  await view.navigate('about:blank');
+  await view.resize(NOTE_WIDTH, HEIGHT);
+  const panels: (string | undefined)[] = [];
+  for (const [index, step] of steps.entries()) {
+    if (step.notes === undefined) { panels.push(undefined); continue; }
+    await view.navigate(`data:text/html;base64,${Buffer.from(notePage(step.chapter, step.notes, NOTE_BACKGROUND)).toString('base64')}`);
+    if (Number(await view.evaluate('document.documentElement.scrollHeight')) > HEIGHT)
+      throw new Error(`Step ${index + 1}: notes are taller than the ${HEIGHT} px panel. Shorten them.`);
+    const path = join(output, 'notes', `${index + 1}.png`);
+    await writeFile(path, await view.screenshot({ encoding: 'buffer' }));
+    panels.push(path);
+  }
+  return panels;
 }
 
 async function lines(input: string, key: string | undefined) {

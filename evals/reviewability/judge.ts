@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // Asks Opus and Sol to review each version of each scenario, and to compare versions pairwise in both orders.
-// Judges see only the packet: frames, captions and (C) the receipt. Code scores their answers in score.ts.
+// Judges see only the packet: frames and captions; C's frames hold the receipt. Code scores their answers in score.ts.
 // Usage: bun evals/reviewability/judge.ts [--repeats 3] [--concurrency 6] [--judges opus,sol] [scenario...]
 import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -34,15 +34,14 @@ const SYSTEM = `You are a senior engineer reviewing a pull request. You cannot r
 const LAYOUT: Record<Version, string> = {
   A: 'The review video plays the before recording first, then the after recording.',
   B: 'The review video plays before (left) and after (right) side by side, recorded with the same steps.',
-  C: 'The review video plays before (left) and after (right) side by side, recorded with the same steps. Beside the video, the author attached a receipt for each chapter.',
+  C: 'The review video plays before (left) and after (right) side by side, recorded with the same steps. A panel on the right of the frame shows a receipt the author attached for each chapter.',
 };
 
 function presentation(packet: Packet, name: string): Part[] {
-  const parts: Part[] = [{ text: `${name}. ${LAYOUT[packet.version]} Each step below gives its chapter, its caption, and its first, middle and last video frame${packet.version === 'C' ? ', then the receipt shown beside the video for that chapter' : ''}.` }];
+  const parts: Part[] = [{ text: `${name}. ${LAYOUT[packet.version]} Each step below gives its chapter, its caption, and its first, middle and last video frame.` }];
   packet.steps.forEach((step, i) => {
     parts.push({ text: `${name}, step ${i + 1} of ${packet.steps.length}. Chapter: ${step.chapter}. Caption: ${step.caption}` });
     for (const frame of step.frames) parts.push({ image: frame });
-    if (step.card) parts.push({ image: step.card });
   });
   return parts;
 }

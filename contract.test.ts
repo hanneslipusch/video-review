@@ -9,9 +9,9 @@ test('wrong intervals fail before paid speech or evidence writes', () => {
 });
 
 test('literal template tokens and dollar sequences cannot corrupt the player', () => {
-  const title = '{{NOTES}} $& </script>';
-  const result = renderPlayer('<title>{{TITLE}}</title><h1>{{TITLE}}</h1>{{NOTES}}', title, '<aside>{{TITLE}} $&</aside>');
-  expect(result).toBe('<title>{{NOTES}} $&amp; &lt;/script&gt;</title><h1>{{NOTES}} $&amp; &lt;/script&gt;</h1><aside>{{TITLE}} $&</aside>');
+  const title = '{{ASPECT}} $& </script>';
+  const result = renderPlayer('<title>{{TITLE}}</title><h1>{{TITLE}}</h1>{{ASPECT}} {{PAGE}}', title, 1920, 1080);
+  expect(result).toBe('<title>{{ASPECT}} $&amp; &lt;/script&gt;</title><h1>{{ASPECT}} $&amp; &lt;/script&gt;</h1>16/9 1120');
 });
 
 test('VTT tracks preserve optional cue IDs, millisecond rounding and payloads', () => {

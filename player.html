@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="vendor/skin.css">
 <style>
 :root{font-family:system-ui,sans-serif;color:#20302a;background:#f7f8f6;color-scheme:light}
-*{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:auto;padding:40px 24px}
+*{box-sizing:border-box}body{margin:0}main{max-width:{{PAGE}}px;margin:auto;padding:40px 24px}
 h1{font-size:clamp(22px,3vw,34px);font-weight:600;letter-spacing:-.02em;margin:0 0 16px}
 p,details{color:#5c6a60;font-size:14px;line-height:1.5;margin:0 0 16px}a{color:#2f5a44}
 .media-skin{--media-border-radius:12px;--media-controls-gradient:linear-gradient(to top,rgb(0 0 0/.62),rgb(0 0 0/.3) 60px,transparent 128px);background:#e9ece8}
@@ -18,14 +18,6 @@ p,details{color:#5c6a60;font-size:14px;line-height:1.5;margin:0 0 16px}a{color:#
 .review-rate::after{content:attr(data-rate) "×"}
 summary{cursor:pointer;width:max-content}kbd{font:12px ui-monospace,monospace;padding:1px 5px;border:1px solid #d5dbd5;border-radius:4px;background:#fff}
 dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:10px 0 0}dd{margin:0}
-@media(min-width:901px){main:has(>.notes){max-width:1520px;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);column-gap:24px;align-items:start}
-main:has(>.notes)>:not(video-player,.notes){grid-column:1/-1}main:has(>.notes)>.notes{contain:size;align-self:stretch;overflow:auto}}
-.notes article{padding:16px 18px;border:1px solid #e1e5e0;border-radius:12px;background:#fff;font-size:14px;line-height:1.5}.notes article:empty{display:none}
-.notes h2{margin:0 0 10px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5c6a60}
-.notes p,.notes ul,.notes ol,.notes pre,.notes table{color:inherit;margin:0 0 12px}.notes>article>:last-child{margin-bottom:0}.notes ul,.notes ol{padding-left:20px}
-.notes table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}.notes th,.notes td{padding:5px 8px 5px 0;border-bottom:1px solid #e9ece8;text-align:left;vertical-align:top}.notes th{font-weight:600}
-.notes code{font:12.5px/1.45 ui-monospace,monospace;overflow-wrap:anywhere}.notes pre{padding:8px 10px;border-radius:8px;background:#f3f5f2;white-space:pre-wrap}
-@media(max-width:900px){.notes article{margin:16px 0}}
 @media(pointer:coarse){details{display:none}}
 @media(max-width:600px){main{padding:20px 0}main>:not(video-player){margin-inline:14px}.media-skin{--media-border-radius:0}}
 </style>
@@ -34,7 +26,7 @@ main:has(>.notes)>:not(video-player,.notes){grid-column:1/-1}main:has(>.notes)>.
 <body><main>
 <h1>{{TITLE}}</h1>
 <video-player poster="poster.jpg">
-<media-container class="media-skin media-container video-skin" data-theme="neutral" data-preset="video" style="aspect-ratio:16/9">
+<media-container class="media-skin media-container video-skin" data-theme="neutral" data-preset="video" style="aspect-ratio:{{ASPECT}}">
 <video src="video.mp4" playsinline preload="auto">
 <track kind="captions" src="captions.vtt" srclang="en" label="Observations" default>
 <track kind="chapters" src="chapters.vtt" srclang="en" default>
@@ -91,7 +83,7 @@ main:has(>.notes)>:not(video-player,.notes){grid-column:1/-1}main:has(>.notes)>.
 </div>
 </media-container>
 </video-player>
-{{NOTES}}<details><summary>Keyboard shortcuts</summary><dl>
+<details><summary>Keyboard shortcuts</summary><dl>
 <dt><kbd>Space</kbd> <kbd>K</kbd></dt><dd>Play or pause</dd>
 <dt><kbd>J</kbd> <kbd>L</kbd></dt><dd>Back or forward 10 s</dd>
 <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Back or forward 5 s</dd>

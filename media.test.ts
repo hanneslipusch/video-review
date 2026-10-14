@@ -24,9 +24,10 @@ test('color metadata changes preserve every interval', async () => {
     run(['ffmpeg', '-v', 'error', '-f', 'concat', '-safe', '0', '-i', join(dir, 'concat.txt'), '-c', 'copy', join(dir, 'source.mp4')]);
     await writeFile(join(dir, 'steps.json'), JSON.stringify({ title: 'Metadata transition', steps: [
       { start: 0, end: 2, chapter: 'Blue frame', text: 'Blue stayed.' },
-      { start: 2, end: 4, chapter: 'Green frame', text: 'Green showed.' },
+      { start: 2, end: 4, chapter: 'Green frame', text: 'Green showed.', notes: 'notes.md' },
       { start: 4, end: 8.4, chapter: 'Red frame', text: 'Red appeared.' },
     ] }));
+    await writeFile(join(dir, 'notes.md'), '| Queries |\n| --- |\n| 3 → 23 |\n');
     const out = join(dir, 'review');
     const build = (destination: string) => run(['bun', 'bin/video-review', 'build', join(dir, 'source.mp4'), join(dir, 'steps.json'), '--out', destination]);
     build(out);
@@ -42,8 +43,15 @@ test('color metadata changes preserve every interval', async () => {
       const rgb = await readFile(pixel);
       expect(rgb[channel]!).toBeGreaterThan(Math.max(...rgb.filter((_, index) => index !== channel)));
     }
-    expect(JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8')).voiceover).toBeNull();
-    expect(await readFile(join(out, 'index.html'), 'utf8')).not.toContain('<aside');
+    const timeline = JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8'));
+    expect([timeline.voiceover, timeline.steps[1].notes]).toEqual([null, '| Queries |\n| --- |\n| 3 → 23 |']);
+    // The note widens the frame by its panel; only the green step's panel holds dark text.
+    expect(JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'stream=width', '-of', 'csv=p=0', join(out, 'video.mp4')]))).toBe(2560);
+    for (const [i, text] of [[0, false], [1, true], [2, false]] as const) {
+      const panel = join(dir, `panel-${i}.gray`);
+      run(['ffmpeg', '-v', 'error', '-i', join(out, 'frames', `${i + 1}.jpg`), '-vf', 'crop=320:200:960:0,format=gray', '-frames:v', '1', '-f', 'rawvideo', panel]);
+      expect(Math.min(...await readFile(panel)) < 100).toBe(text);
+    }
     build(out);
     await writeFile(join(dir, 'notes.txt'), 'keep');
     expect(() => build(dir)).toThrow('not a video-review output');
@@ -62,8 +70,7 @@ test('mixed sources retain image and video outcomes at the main canvas size', as
       run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', `color=${color}:s=${size}:d=4:r=30`, '-vf', `setsar=${sar}`, ...(name!.endsWith('.png') ? ['-frames:v', '1', '-update', '1'] : ['-c:v', 'libx264']), '-threads', '1', join(dir, name!)]);
     const step = { start: 0, end: 2, chapter: 'Result', text: 'Shown.' };
     const card = { source: 'card.png', chapter: 'Card', text: 'Shown.' };
-    const steps = [card, { ...step, notes: 'notes.md' }, { ...step, source: 'other.mp4', start: 2, end: 4 }, { ...step, source: 'other.mp4' }, card];
-    await writeFile(join(dir, 'notes.md'), '| Queries |\n| --- |\n| 3 → 23 |\n');
+    const steps = [card, step, { ...step, source: 'other.mp4', start: 2, end: 4 }, { ...step, source: 'other.mp4' }, card];
     const input = join(dir, 'steps.json'), out = join(dir, 'review');
     // A key that cannot speak proves --captions-only never calls Gemini.
     const build = () => run(['bun', 'bin/video-review', 'build', join(dir, 'main.mp4'), input, '--out', out, '--captions-only'], { ...withoutKey, GEMINI_API_KEY: 'invalid' });
@@ -72,9 +79,6 @@ test('mixed sources retain image and video outcomes at the main canvas size', as
     const timeline = JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8'));
     expect(timeline.sources.length).toBe(3);
     expect(timeline.steps.map((s: { source?: string }) => s.source)).toEqual(['card.png', undefined, 'other.mp4', 'other.mp4', 'card.png']);
-    expect(timeline.steps.map((s: { notes?: string }) => s.notes)).toEqual([undefined, '| Queries |\n| --- |\n| 3 → 23 |', undefined, undefined, undefined]);
-    const page = await readFile(join(out, 'index.html'), 'utf8');
-    expect([page.match(/<article /g)?.length, page.includes(`<article data-at="${timeline.steps[1].at}" hidden><h2>Result</h2><table>`), page.includes('<td>3 → 23</td>')]).toEqual([5, true, true]);
     const video = JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'stream=width,height,sample_aspect_ratio', '-of', 'json', join(out, 'video.mp4')]));
     expect(video.streams[0]).toEqual({ width: 1920, height: 1080, sample_aspect_ratio: '1:1' });
     // Strip tiles are 960x540; x=150 is inside main.mp4's 4:3 picture only when its pixels are widened.

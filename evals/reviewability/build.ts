@@ -10,7 +10,7 @@ export const OUT = resolve(import.meta.dir, '../results/reviewability');
 const CLI = resolve(import.meta.dir, '../../bin/video-review');
 export const VERSIONS = ['A', 'B', 'C'] as const;
 export type Version = (typeof VERSIONS)[number];
-export type PacketStep = { chapter: string; caption: string; frames: string[]; receipt?: string; card?: string };
+export type PacketStep = { chapter: string; caption: string; frames: string[] };
 export type Packet = { scenario: string; version: Version; title: string; description: string; steps: PacketStep[] };
 
 function run(cmd: string[]) {
@@ -86,39 +86,6 @@ function frames(dir: string): { chapter: string; caption: string; frames: string
   });
 }
 
-const CARD_CSS = `body{margin:0;font:22px/1.45 system-ui,sans-serif;color:#1f2933;background:#fff}
-.card{padding:22px 28px;width:900px}h2{font-size:24px;margin:0 0 12px}
-table{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{text-align:left;padding:6px 10px;border-bottom:1px solid #e3e6ea;vertical-align:top}
-th{background:#f3f4f6}code{font:19px ui-monospace,monospace;background:#f3f4f6;padding:1px 4px;border-radius:4px}p{margin:6px 0}ul{margin:6px 0;padding-left:22px}pre{margin:6px 0;padding:8px 10px;background:#f3f4f6;border-radius:6px;white-space:pre-wrap}pre code{padding:0}`;
-
-async function cards(scenario: Scenario, dir: string): Promise<(string | undefined)[]> {
-  mkdirSync(join(dir, 'cards'), { recursive: true });
-  const server = Bun.serve({ hostname: '0.0.0.0', port: 0, fetch: async req => { const file = Bun.file(join(dir, 'cards', new URL(req.url).pathname)); return await file.exists() ? new Response(file) : new Response(null, { status: 404 }); } });
-  const session = `reviewability-cards-${process.pid}`;
-  // Async: the card server runs on this process's event loop.
-  const browser = async (...args: string[]) => {
-    const child = Bun.spawn(['agent-browser', '--session', session, ...args], { stdout: 'pipe', stderr: 'pipe' });
-    if (await child.exited !== 0) throw new Error(`agent-browser ${args.join(' ')}: ${await new Response(child.stderr).text()}`);
-  };
-  try {
-    await browser('set', 'viewport', '960', '600');
-    const paths: (string | undefined)[] = [];
-    for (const [index, step] of scenario.steps.entries()) {
-      if (!step.receipt) { paths.push(undefined); continue; }
-      writeFileSync(join(dir, 'cards', `${index + 1}.html`), `<!doctype html><meta charset="utf-8"><style>${CARD_CSS}</style><div class="card"><h2>${Bun.escapeHTML(step.chapter)}</h2>${Bun.markdown.html(step.receipt)}</div>`);
-      // agent-browser's Chrome may run in a container; it reaches a host server on 0.0.0.0 as host.docker.internal.
-      await browser('open', `http://host.docker.internal:${server.port}/${index + 1}.html`);
-      const path = join(dir, 'cards', `${index + 1}.png`);
-      await browser('screenshot', '--full', path);
-      paths.push(path);
-    }
-    return paths;
-  } finally {
-    await browser('close');
-    server.stop(true);
-  }
-}
-
 if (import.meta.main) {
   for (const dir of scenarioDirs(Bun.argv.slice(2))) {
     const scenario = loadScenario(dir);
@@ -136,10 +103,8 @@ if (import.meta.main) {
     }));
     const packet = (version: Version, steps: PacketStep[]): Packet =>
       ({ scenario: scenario.id, version, title: scenario.title, description: scenario.description, steps });
-    const aFrames = frames(join(root, 'A')), bFrames = frames(join(root, 'B'));
-    const c = await cards(scenario, join(root, 'C'));
-    for (const [version, steps] of [['A', aFrames], ['B', bFrames], ['C', bFrames.map((step, i) => ({ ...step, receipt: scenario.steps[i]!.receipt, card: c[i] }))]] as const)
-      writeFileSync(join(root, version, 'packet.json'), JSON.stringify(packet(version, steps as PacketStep[]), null, 1));
-    console.log(scenario.id, 'A', aFrames.length, 'B', bFrames.length, 'C cards', c.filter(Boolean).length);
+    for (const version of VERSIONS)
+      writeFileSync(join(root, version, 'packet.json'), JSON.stringify(packet(version, frames(join(root, version))), null, 1));
+    console.log(scenario.id, 'built A, B and C');
   }
 }
