@@ -1,0 +1,112 @@
+{
+  "title": "Count items left on the server",
+  "description": "The items-left footer is now computed by the server instead of the browser. No visible change intended.",
+  "before": {
+    "variant": ""
+  },
+  "after": {
+    "variant": "count_bug"
+  },
+  "steps": [
+    {
+      "chapter": "Project open",
+      "text": "Open Alder Creek Solar. Write the report is its only todo.",
+      "actions": [
+        [
+          "open",
+          "{url}/projects/1"
+        ]
+      ]
+    },
+    {
+      "chapter": "Todo added",
+      "text": "Type Buy milk into New todo and press Add.",
+      "actions": [
+        [
+          "find",
+          "label",
+          "New todo",
+          "fill",
+          "Buy milk"
+        ],
+        [
+          "find",
+          "role",
+          "button",
+          "click",
+          "--name",
+          "Add"
+        ]
+      ]
+    },
+    {
+      "chapter": "Todo ticked",
+      "text": "Tick Buy milk. It is struck through.",
+      "actions": [
+        [
+          "find",
+          "role",
+          "button",
+          "click",
+          "--name",
+          "Toggle Buy milk"
+        ]
+      ]
+    }
+  ],
+  "verdict": {
+    "blocking": true,
+    "category": "visible_behavior",
+    "why": "After ticking Buy milk the footer still says 2 items left; it counts done todos.",
+    "evidence": "items? left|footer|count"
+  },
+  "questions": [
+    {
+      "id": "after-footer",
+      "kind": "visible",
+      "question": "In the after recording, once Buy milk is ticked, what does the footer say?",
+      "options": [
+        "0 items left",
+        "1 item left",
+        "2 items left",
+        "cannot tell"
+      ],
+      "answer": "2 items left"
+    },
+    {
+      "id": "before-footer",
+      "kind": "visible",
+      "question": "In the before recording, once Buy milk is ticked, what does the footer say?",
+      "options": [
+        "0 items left",
+        "1 item left",
+        "2 items left",
+        "cannot tell"
+      ],
+      "answer": "1 item left"
+    },
+    {
+      "id": "queries",
+      "kind": "backend",
+      "question": "Compared with before, how many SQL queries does the after version run for the requests in this review?",
+      "options": [
+        "more",
+        "fewer",
+        "the same",
+        "cannot tell"
+      ],
+      "answer": "the same"
+    },
+    {
+      "id": "new-log",
+      "kind": "backend",
+      "question": "Does the after version log any warning or error on the server that before does not?",
+      "options": [
+        "yes",
+        "no",
+        "cannot tell"
+      ],
+      "answer": "no"
+    }
+  ]
+}

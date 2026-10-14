@@ -1,0 +1,77 @@
+{
+ "before": [
+  [
+   {
+    "request": "GET /",
+    "status": 200,
+    "sql": 23,
+    "ms": 4,
+    "repeated": [
+     {
+      "statement": "select name from users where id = ?",
+      "count": 10
+     },
+     {
+      "statement": "select count(*) from todos where project_id = ? and done = 0",
+      "count": 10
+     }
+    ],
+    "logs": []
+   }
+  ],
+  [
+   {
+    "request": "GET /projects/{pid}",
+    "status": 200,
+    "sql": 4,
+    "ms": 2,
+    "repeated": [],
+    "logs": []
+   }
+  ]
+ ],
+ "after": [
+  [
+   {
+    "request": "GET /",
+    "status": 200,
+    "sql": 3,
+    "ms": 3,
+    "repeated": [],
+    "logs": []
+   }
+  ],
+  [
+   {
+    "request": "GET /projects/{pid}",
+    "status": 200,
+    "sql": 4,
+    "ms": 2,
+    "repeated": [],
+    "logs": []
+   }
+  ]
+ ],
+ "windows": {
+  "before": [
+   {
+    "start": 0,
+    "end": 7
+   },
+   {
+    "start": 7,
+    "end": 13.5
+   }
+  ],
+  "after": [
+   {
+    "start": 0,
+    "end": 7
+   },
+   {
+    "start": 7,
+    "end": 13.5
+   }
+  ]
+ }
+}

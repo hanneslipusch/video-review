@@ -4,3 +4,5 @@ assets.generated.ts
 .env*
 evals/results/
 evals-private/
+.venv/
+__pycache__/

@@ -1,0 +1,90 @@
+{
+  "title": "Project list reads through the ProjectSummary helper",
+  "description": "Refactor: the Projects page builds its rows with a new per-project summary helper. No visible change intended.",
+  "before": {
+    "variant": ""
+  },
+  "after": {
+    "variant": "n_plus_one"
+  },
+  "steps": [
+    {
+      "chapter": "Projects",
+      "text": "Open Projects. Ten projects list their owner and open tasks.",
+      "actions": [
+        [
+          "open",
+          "{url}/"
+        ]
+      ]
+    },
+    {
+      "chapter": "Project open",
+      "text": "Open Cedar Ridge Wind. Its five open tasks are listed.",
+      "actions": [
+        [
+          "find",
+          "role",
+          "link",
+          "click",
+          "--name",
+          "Cedar Ridge Wind"
+        ]
+      ]
+    }
+  ],
+  "verdict": {
+    "blocking": true,
+    "category": "performance",
+    "why": "The Projects page goes from 3 to 23 SQL queries: two per project (N+1), so it grows with the list.",
+    "evidence": "quer|sql|n\\s*\\+\\s*1"
+  },
+  "questions": [
+    {
+      "id": "project-count",
+      "kind": "visible",
+      "question": "How many projects does the after Projects page list?",
+      "options": [
+        "8",
+        "10",
+        "12",
+        "cannot tell"
+      ],
+      "answer": "10"
+    },
+    {
+      "id": "screen-differs",
+      "kind": "visible",
+      "question": "Does anything on screen differ between before and after?",
+      "options": [
+        "yes",
+        "no",
+        "cannot tell"
+      ],
+      "answer": "no"
+    },
+    {
+      "id": "list-queries",
+      "kind": "backend",
+      "question": "Compared with before, how many SQL queries does loading the Projects page run after the change?",
+      "options": [
+        "more",
+        "fewer",
+        "the same",
+        "cannot tell"
+      ],
+      "answer": "more"
+    },
+    {
+      "id": "scales",
+      "kind": "backend",
+      "question": "In the after version, does the number of SQL queries for the Projects page grow with the number of projects listed?",
+      "options": [
+        "yes",
+        "no",
+        "cannot tell"
+      ],
+      "answer": "yes"
+    }
+  ]
+}

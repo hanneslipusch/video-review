@@ -19,5 +19,5 @@
     "allowUnreachableCode": false,
     "allowUnusedLabels": false
   },
-  "include": ["*.ts"]
+  "include": ["*.ts", "evals/reviewability/*.ts"]
 }
