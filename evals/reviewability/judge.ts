@@ -124,9 +124,10 @@ async function askSol(parts: Part[], schema: object, cwd: string) {
 
 type Task = Call & Asked & { parts: Part[]; schema: object };
 
-// A judgment counts only while its model, prompt text, image paths and schema are unchanged; image contents are not hashed.
+// A judgment counts only while its model, prompt text, image contents and schema are unchanged.
 const fingerprint = (judge: Judge, prompt: { parts: Part[]; schema: object }) =>
-  Bun.hash(JSON.stringify([JUDGES[judge], SYSTEM, prompt])).toString(36).slice(0, 8);
+  Bun.hash(JSON.stringify([JUDGES[judge], SYSTEM, prompt.schema,
+    prompt.parts.map(part => 'image' in part ? Bun.hash(readFileSync(part.image)).toString(36) : part.text)])).toString(36).slice(0, 8);
 
 export const currentKeys = (scenarios: Scenario[], repeats: number) =>
   new Set(tasks(scenarios, Object.keys(JUDGES).filter(isJudge), repeats).map(task => task.key));
