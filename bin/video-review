@@ -253,11 +253,11 @@ function vttTime(seconds) {
   const parts = [Math.floor(milliseconds / 3600000), Math.floor(milliseconds / 60000) % 60, Math.floor(milliseconds / 1000) % 60];
   return parts.map((value) => String(value).padStart(2, "0")).join(":") + "." + String(milliseconds % 1000).padStart(3, "0");
 }
-function vtt(cues) {
+function vtt(cues, settings = "") {
   return `WEBVTT
 
 ${cues.map(({ start, end, text, id }) => `${id === undefined ? "" : `${id}
-`}${vttTime(start)} --> ${vttTime(end)}
+`}${vttTime(start)} --> ${vttTime(end)}${settings && ` ${settings}`}
 ${text}
 `).join(`
 `)}`;
@@ -452,7 +452,7 @@ async function build(video, input, destination, key) {
       const footage = `[source${index}]trim=start=${step.start}:end=${step.start + length},setpts=PTS-STARTPTS,fps=${FPS},scale=trunc(iw*sar/2)*2:ih,scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1,tpad=stop_mode=clone:stop_duration=0.1,trim=duration=${length},setpts=PTS-STARTPTS`;
       const panel = panelInputs.get(index);
       if (panel !== undefined)
-        filters.push(`${footage}[f${index}]`, `[${panel}:v]setsar=1,trim=duration=${length},setpts=PTS-STARTPTS[n${index}]`, `[f${index}][n${index}]hstack[v${index}]`);
+        filters.push(`${footage}[f${index}]`, `[${panel}:v]scale=${NOTE_WIDTH}:${HEIGHT},setsar=1,format=yuv420p,trim=duration=${length},setpts=PTS-STARTPTS[n${index}]`, `[f${index}][n${index}]hstack[v${index}]`);
       else
         filters.push(`${footage}${width > WIDTH ? `,pad=${width}:${HEIGHT}:0:0:${NOTE_BACKGROUND}` : ""}[v${index}]`);
       if (voiceover)
@@ -463,9 +463,9 @@ async function build(video, input, destination, key) {
     const rendered = (await probe(join2(output, "video.mp4"), true)).seconds;
     if (Math.abs(rendered - total) > 0.1)
       throw new Error(`Rendered duration ${rendered.toFixed(3)}s differs from the planned ${total.toFixed(3)}s. The recording may change frame properties midstream.`);
-    await writeFile2(join2(output, "captions.vtt"), vtt(timeline.map((s, i) => ({ id: i + 1, start: s.at, end: s.until, text: s.text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") }))));
+    await writeFile2(join2(output, "captions.vtt"), vtt(timeline.map((s, i) => ({ id: i + 1, start: s.at, end: s.until, text: s.text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") })), width > WIDTH ? `position:${100 * WIDTH / 2 / width}% size:${100 * WIDTH / width}%` : ""));
     await writeFile2(join2(output, "chapters.vtt"), chaptersVtt(timeline));
-    const captioned = "subtitles=captions.vtt";
+    const captioned = width > WIDTH ? `subtitles=captions.vtt:force_style='MarginR=${Math.round(384 * NOTE_WIDTH / width)}'` : "subtitles=captions.vtt";
     await run(["ffmpeg", "-v", "error", "-i", "video.mp4", "-vf", `${captioned},setpts=PTS/${PREVIEW_RATE},fps=10,scale=-2:'min(540,ih)':flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, "preview.gif"], output);
     for (let first = 0;first < timeline.length; first += 33) {
       const picks = timeline.slice(first, first + 33).flatMap((s) => [s.at + 0.1, (s.at + s.until) / 2, s.until - 1 / FPS].map((t) => `eq(n,${Math.round(t * FPS)})`));
@@ -552,8 +552,8 @@ async function drawNotes(steps, output) {
       continue;
     }
     await view.navigate(`data:text/html;base64,${Buffer.from(notePage(step.chapter, step.notes, NOTE_BACKGROUND)).toString("base64")}`);
-    if (Number(await view.evaluate("document.documentElement.scrollHeight")) > HEIGHT)
-      throw new Error(`Step ${index + 1}: notes are taller than the ${HEIGHT} px panel. Shorten them.`);
+    if (await view.evaluate(`document.documentElement.scrollHeight > ${HEIGHT} || document.documentElement.scrollWidth > ${NOTE_WIDTH}`))
+      throw new Error(`Step ${index + 1}: notes overflow the ${NOTE_WIDTH}\xD7${HEIGHT} px panel. Shorten them or break long lines.`);
     const path = join2(output, "notes", `${index + 1}.png`);
     await writeFile2(path, await view.screenshot({ encoding: "buffer" }));
     panels.push(path);

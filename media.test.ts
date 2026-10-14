@@ -50,7 +50,7 @@ test('color metadata changes preserve every interval', async () => {
     for (const [i, text] of [[0, false], [1, true], [2, false]] as const) {
       const panel = join(dir, `panel-${i}.gray`);
       run(['ffmpeg', '-v', 'error', '-i', join(out, 'frames', `${i + 1}.jpg`), '-vf', 'crop=320:200:960:0,format=gray', '-frames:v', '1', '-f', 'rawvideo', panel]);
-      expect(Math.min(...await readFile(panel)) < 100).toBe(text);
+      expect(Math.min(...await readFile(panel)) < 60).toBe(text);
     }
     build(out);
     await writeFile(join(dir, 'notes.txt'), 'keep');
@@ -88,7 +88,8 @@ test('mixed sources retain image and video outcomes at the main canvas size', as
       const rgb = await readFile(file);
       expect(rgb[channel]!).toBeGreaterThan(Math.max(...rgb.subarray(0, 3).filter((_, j) => j !== channel)));
     }
-    for (const invalid of [{ ...step, source: 'other.mp4', end: 5 }, { ...card, start: 0 }]) {
+    await writeFile(join(dir, 'long.md'), '- line\n'.repeat(60));
+    for (const invalid of [{ ...step, source: 'other.mp4', end: 5 }, { ...card, start: 0 }, { ...step, notes: 'long.md' }]) {
       await writeFile(input, JSON.stringify({ title: 'Invalid', steps: [invalid] }));
       expect(build).toThrow();
       expect(JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8')).title).toBe('Mixed');

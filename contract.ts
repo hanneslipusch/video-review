@@ -94,9 +94,10 @@ function vttTime(seconds: number): string {
   return parts.map(value => String(value).padStart(2, '0')).join(':') + '.' + String(milliseconds % 1000).padStart(3, '0');
 }
 
-export function vtt(cues: { start: number; end: number; text: string; id?: number }[]): string {
+// settings apply to every cue, such as "position:40% size:80%": https://www.w3.org/TR/webvtt1/#cue-settings
+export function vtt(cues: { start: number; end: number; text: string; id?: number }[], settings = ''): string {
   return `WEBVTT\n\n${cues.map(({ start, end, text, id }) =>
-    `${id === undefined ? '' : `${id}\n`}${vttTime(start)} --> ${vttTime(end)}\n${text}\n`).join('\n')}`;
+    `${id === undefined ? '' : `${id}\n`}${vttTime(start)} --> ${vttTime(end)}${settings && ` ${settings}`}\n${text}\n`).join('\n')}`;
 }
 
 export function chaptersVtt(chapters: Chapter[]): string {

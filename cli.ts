@@ -169,7 +169,7 @@ async function build(video: string, input: string, destination: string, key: str
       // Non-square pixels widen to their display shape first; the clone pad only fills a frame lost to rounding.
       const footage = `[source${index}]trim=start=${step.start}:end=${step.start + length},setpts=PTS-STARTPTS,fps=${FPS},scale=trunc(iw*sar/2)*2:ih,scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1,tpad=stop_mode=clone:stop_duration=0.1,trim=duration=${length},setpts=PTS-STARTPTS`;
       const panel = panelInputs.get(index);
-      if (panel !== undefined) filters.push(`${footage}[f${index}]`, `[${panel}:v]setsar=1,trim=duration=${length},setpts=PTS-STARTPTS[n${index}]`, `[f${index}][n${index}]hstack[v${index}]`);
+      if (panel !== undefined) filters.push(`${footage}[f${index}]`, `[${panel}:v]scale=${NOTE_WIDTH}:${HEIGHT},setsar=1,format=yuv420p,trim=duration=${length},setpts=PTS-STARTPTS[n${index}]`, `[f${index}][n${index}]hstack[v${index}]`);
       else filters.push(`${footage}${width > WIDTH ? `,pad=${width}:${HEIGHT}:0:0:${NOTE_BACKGROUND}` : ''}[v${index}]`);
       if (voiceover) filters.push(`[${media.size + index}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,apad,atrim=duration=${length},asetpts=PTS-STARTPTS[a${index}]`);
     }
@@ -178,10 +178,13 @@ async function build(video: string, input: string, destination: string, key: str
     const rendered = (await probe(join(output, 'video.mp4'), true)).seconds;
     if (Math.abs(rendered - total) > 0.1)
       throw new Error(`Rendered duration ${rendered.toFixed(3)}s differs from the planned ${total.toFixed(3)}s. The recording may change frame properties midstream.`);
-    await writeFile(join(output, 'captions.vtt'), vtt(timeline.map((s, i) => ({ id: i + 1, start: s.at, end: s.until, text: s.text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;') }))));
+    await writeFile(join(output, 'captions.vtt'), vtt(timeline.map((s, i) => ({ id: i + 1, start: s.at, end: s.until, text: s.text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;') })),
+      // Captions centre on the footage, clear of the notes panel.
+      width > WIDTH ? `position:${100 * WIDTH / 2 / width}% size:${100 * WIDTH / width}%` : ''));
     await writeFile(join(output, 'chapters.vtt'), chaptersVtt(timeline));
     // GitHub plays only videos uploaded in its web editor, so pages embed this instead: https://ffmpeg.org/ffmpeg-filters.html#subtitles
-    const captioned = 'subtitles=captions.vtt';
+    // libass ignores VTT cue settings and measures margins against a 384-unit-wide script: https://ffmpeg.org/ffmpeg-filters.html#subtitles-1
+    const captioned = width > WIDTH ? `subtitles=captions.vtt:force_style='MarginR=${Math.round(384 * NOTE_WIDTH / width)}'` : 'subtitles=captions.vtt';
     await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `${captioned},setpts=PTS/${PREVIEW_RATE},fps=10,scale=-2:'min(540,ih)':flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, 'preview.gif'], output);
     // Three frames per step, as a viewer sees them: the start, the middle and the last.
     // The start is 0.1 s in, since libass times captions to 1/100 s and can show the previous one first.
@@ -230,8 +233,8 @@ async function drawNotes(steps: { chapter: string; notes?: string }[], output: s
   for (const [index, step] of steps.entries()) {
     if (step.notes === undefined) { panels.push(undefined); continue; }
     await view.navigate(`data:text/html;base64,${Buffer.from(notePage(step.chapter, step.notes, NOTE_BACKGROUND)).toString('base64')}`);
-    if (Number(await view.evaluate('document.documentElement.scrollHeight')) > HEIGHT)
-      throw new Error(`Step ${index + 1}: notes are taller than the ${HEIGHT} px panel. Shorten them.`);
+    if (await view.evaluate(`document.documentElement.scrollHeight > ${HEIGHT} || document.documentElement.scrollWidth > ${NOTE_WIDTH}`))
+      throw new Error(`Step ${index + 1}: notes overflow the ${NOTE_WIDTH}×${HEIGHT} px panel. Shorten them or break long lines.`);
     const path = join(output, 'notes', `${index + 1}.png`);
     await writeFile(path, await view.screenshot({ encoding: 'buffer' }));
     panels.push(path);
