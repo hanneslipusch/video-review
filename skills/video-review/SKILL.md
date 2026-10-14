@@ -9,7 +9,7 @@ A reviewer watches this one video instead of running your work. Done when every 
 
 ## Show the change
 
-Show each change the way that makes it obvious: the recording, before and after side by side, a zoom on the detail, the highlighted diff, a page of the exported file. A step's `source` takes any video or image, so compose with ffmpeg, or with HyperFrames for HTML. Show only real output, and name the take when there are several. `video-review build --help` gives the input format.
+Show each change the way that makes it obvious. When it has a before, show before and after side by side, before on the left, both recorded with the same steps from the same start. Otherwise use the recording, a zoom on the detail, the highlighted diff, or a page of the exported file. A step's `source` takes any video or image, so compose with ffmpeg, or with HyperFrames for HTML. Show only real output, and name the take when there are several. `video-review build --help` gives the input format.
 
 ## Fit each line to its footage
 
