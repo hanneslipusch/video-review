@@ -6,14 +6,14 @@ export const CHAPTER_LIMIT = 20, FPS = 30;
 // https://partnerhelp.netflixstudios.com/hc/en-us/articles/215758617-Timed-Text-Style-Guide-General-Requirements
 const READING_CHARACTERS_PER_SECOND = 17, SHORTEST_LINE_SECONDS = 5 / 6, SPEECH_TAIL_SECONDS = 0.5;
 // An image step has no interval: it carries start 0 and end 1, and shows for as long as its line needs.
-type Step = { start: number; end: number; chapter: string; text: string; source?: string };
+type Step = { start: number; end: number; chapter: string; text: string; source?: string; notes?: string };
 export const isImage = (path: string) => /\.(png|jpe?g)$/i.test(path);
 type Review = { title: string; steps: Step[] };
 type Chapter = Step & { at: number; until: number; speechSeconds: number };
 
 export function parseReview(value: unknown, duration: number): Review {
   if (!value || typeof value !== 'object' || !('title' in value) || !('steps' in value))
-    throw new Error('Expected {title, steps: [{start, end, chapter, text, source?}]}. See video-review build --help.');
+    throw new Error('Expected {title, steps: [{start, end, chapter, text, source?, notes?}]}. See video-review build --help.');
   if (typeof value.title !== 'string' || !value.title.trim() || value.title.length > 160)
     throw new Error('title must contain 1–160 characters.');
   if (!Array.isArray(value.steps) || !value.steps.length)
@@ -23,9 +23,7 @@ export function parseReview(value: unknown, duration: number): Review {
     if (!step || typeof step !== 'object' || !('chapter' in step) || !('text' in step))
       throw new Error(`Step ${index + 1} needs chapter and text.`);
     const { chapter, text } = step;
-    const source = 'source' in step ? step.source : undefined;
-    if (source !== undefined && (typeof source !== 'string' || !source.trim() || /[\u0000-\u001f]/.test(source)))
-      throw new Error(`Step ${index + 1}: source must be a nonempty local file path.`);
+    const source = localPath(step, 'source', index), notes = localPath(step, 'notes', index);
     const image = source !== undefined && isImage(source);
     if (image && ('start' in step || 'end' in step))
       throw new Error(`Step ${index + 1}: an image step takes no start or end; it shows for as long as its line needs.`);
@@ -42,9 +40,16 @@ export function parseReview(value: unknown, duration: number): Review {
     if (typeof chapter !== 'string' || !chapter.trim() || chapter.length > CHAPTER_LIMIT || /[\r\n\u0000-\u001f]|-->/.test(chapter))
       throw new Error(`Step ${index + 1}: chapter must be one line of 1–${CHAPTER_LIMIT} characters without VTT delimiters.`);
     if (source === undefined) previousEnd = end;
-    return { start, end, chapter: chapter.trim(), text: text.trim(), ...(source === undefined ? {} : { source }) };
+    return { start, end, chapter: chapter.trim(), text: text.trim(), ...(source === undefined ? {} : { source }), ...(notes === undefined ? {} : { notes }) };
   });
   return { title: value.title.trim(), steps };
+}
+
+function localPath(step: object, name: 'source' | 'notes', index: number) {
+  const path: unknown = name in step ? Reflect.get(step, name) : undefined;
+  if (path !== undefined && (typeof path !== 'string' || !path.trim() || /[\u0000-\u001f]/.test(path)))
+    throw new Error(`Step ${index + 1}: ${name} must be a nonempty local file path.`);
+  return path;
 }
 
 function checkLine(text: unknown, index: number): asserts text is string {
@@ -100,5 +105,14 @@ export function chaptersVtt(chapters: Chapter[]): string {
   return vtt(chapters.map((s, i) => ({ id: i + 1, start: edge(s.at), end: edge(s.until), text: s.chapter })));
 }
 
-export const renderPlayer = (template: string, title: string) =>
-  template.replaceAll('{{TITLE}}', () => Bun.escapeHTML(title));
+// One article per chapter, so the player shows the playing chapter's note, or nothing for a chapter without one.
+// Markdown options: https://bun.com/docs/runtime/markdown
+export function notesHtml(chapters: { at: number; chapter: string; notes?: string }[]): string {
+  if (!chapters.some(c => c.notes !== undefined)) return '';
+  const note = (c: { chapter: string; notes?: string }) => c.notes === undefined ? ''
+    : `<h2>${Bun.escapeHTML(c.chapter)}</h2>${Bun.markdown.html(c.notes, { tagFilter: true, autolinks: true })}`;
+  return `<aside class="notes" aria-label="Notes">${chapters.map(c => `<article data-at="${c.at}"${c.at ? ' hidden' : ''}>${note(c)}</article>`).join('')}</aside>`;
+}
+
+export const renderPlayer = (template: string, title: string, notes: string) =>
+  template.replace(/\{\{(TITLE|NOTES)\}\}/g, (_, key) => key === 'TITLE' ? Bun.escapeHTML(title) : notes);

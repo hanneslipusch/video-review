@@ -5,6 +5,54 @@
     "request": "GET /projects/{pid}",
     "status": 200,
     "sql": 4,
+    "ms": 4,
+    "repeated": [],
+    "logs": []
+   }
+  ],
+  [
+   {
+    "request": "POST /projects/{pid}/todos",
+    "status": 303,
+    "sql": 1,
+    "ms": 7,
+    "repeated": [],
+    "logs": []
+   },
+   {
+    "request": "GET /projects/{pid}",
+    "status": 200,
+    "sql": 4,
+    "ms": 3,
+    "repeated": [],
+    "logs": []
+   }
+  ],
+  [
+   {
+    "request": "POST /todos/{tid}/toggle",
+    "status": 303,
+    "sql": 2,
+    "ms": 6,
+    "repeated": [],
+    "logs": []
+   },
+   {
+    "request": "GET /projects/{pid}",
+    "status": 200,
+    "sql": 4,
+    "ms": 2,
+    "repeated": [],
+    "logs": []
+   }
+  ]
+ ],
+ "after": [
+  [
+   {
+    "request": "GET /projects/{pid}",
+    "status": 200,
+    "sql": 4,
     "ms": 3,
     "repeated": [],
     "logs": []
@@ -33,7 +81,7 @@
     "request": "POST /todos/{tid}/toggle",
     "status": 303,
     "sql": 2,
-    "ms": 6,
+    "ms": 7,
     "repeated": [],
     "logs": []
    },
@@ -41,55 +89,7 @@
     "request": "GET /projects/{pid}",
     "status": 200,
     "sql": 4,
-    "ms": 1,
-    "repeated": [],
-    "logs": []
-   }
-  ]
- ],
- "after": [
-  [
-   {
-    "request": "GET /projects/{pid}",
-    "status": 200,
-    "sql": 4,
-    "ms": 2,
-    "repeated": [],
-    "logs": []
-   }
-  ],
-  [
-   {
-    "request": "POST /projects/{pid}/todos",
-    "status": 303,
-    "sql": 1,
-    "ms": 5,
-    "repeated": [],
-    "logs": []
-   },
-   {
-    "request": "GET /projects/{pid}",
-    "status": 200,
-    "sql": 4,
-    "ms": 1,
-    "repeated": [],
-    "logs": []
-   }
-  ],
-  [
-   {
-    "request": "POST /todos/{tid}/toggle",
-    "status": 303,
-    "sql": 2,
-    "ms": 6,
-    "repeated": [],
-    "logs": []
-   },
-   {
-    "request": "GET /projects/{pid}",
-    "status": 200,
-    "sql": 4,
-    "ms": 2,
+    "ms": 4,
     "repeated": [],
     "logs": []
    }
@@ -103,11 +103,11 @@
    },
    {
     "start": 6.8,
-    "end": 12.3
+    "end": 12.2
    },
    {
-    "start": 12.3,
-    "end": 17.2
+    "start": 12.2,
+    "end": 17.1
    }
   ],
   "after": [
@@ -117,11 +117,11 @@
    },
    {
     "start": 6.8,
-    "end": 12.3
+    "end": 12.2
    },
    {
-    "start": 12.3,
-    "end": 17.2
+    "start": 12.2,
+    "end": 17.1
    }
   ]
  }

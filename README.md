@@ -59,9 +59,9 @@ Serve the `review` folder from any static server; browsers block its player scri
 
 ## What the reviewer gets
 
-The page plays at 1.5×, and the rate button steps from 1× to 4×. Each line stays on screen at least as long as a subtitle reader needs at 1.5×: 17 characters per second of watching time, or the spoken line plus half a second. Each step plays at recorded speed in a 16:9 frame, with no frozen frames. Hover a segment of the progress bar to see its chapter and a frame.
+The page plays at 1.5×, and the rate button steps from 1× to 4×. Each line stays on screen at least as long as a subtitle reader needs at 1.5×: 17 characters per second of watching time, or the spoken line plus half a second. Each step plays at recorded speed in a 16:9 frame, with no frozen frames. Hover a segment of the progress bar to see its chapter and a frame. A step's `notes` show beside the video while it plays.
 
-The folder also holds `video.mp4` for chat, `frames/` with each step's first, middle and last frame and its caption, and `timeline.json` with source hashes and step times. `preview.gif` plays the review at 2.5× with the captions, for pages that can't play video, such as a pull request. Link the page first; GitHub shows a GIF over 5 MiB as a broken image. The [Video.js 10](https://videojs.org/) player is bundled, with no CDN.
+The folder also holds `video.mp4` for chat, `frames/` with each step's first, middle and last frame and its caption, and `timeline.json` with source hashes, step times and notes. `preview.gif` plays the review at 2.5× with the captions, for pages that can't play video, such as a pull request. Link the page first; GitHub shows a GIF over 5 MiB as a broken image. The [Video.js 10](https://videojs.org/) player is bundled, with no CDN.
 
 ## Voiceover
 
@@ -80,7 +80,7 @@ Commit the generated `bin/video-review` with the source. The default Haiku judge
 
 ### Reviewability eval
 
-`evals/reviewability/` asks whether a review is easier to judge as before then after (A), side by side (B), or side by side with a per-chapter backend receipt beside the video (C). The receipt shows each request's query count before → after, and diffs repeated queries and log lines; status and time appear only when they change. Each scenario records one change twice with the same steps. Its `scenario.json` fixes the questions and the true answers, plus whether the change should block a merge. The public scenarios plant an N+1 query, a swallowed webhook error, and a wrong footer count, and include a real speed-up and a sort change as controls.
+`evals/reviewability/` asks whether a review is easier to judge as before then after (A), side by side (B), or side by side with a per-chapter backend receipt as its `notes` beside the video (C). The receipt shows each request's query count before → after, and diffs repeated queries and log lines; status and time appear only when they change. Each scenario records one change twice with the same steps. Its `scenario.json` fixes the questions and the true answers, plus whether the change should block a merge. The public scenarios plant an N+1 query, a swallowed webhook error, and a wrong footer count, and include a real speed-up and a sort change as controls.
 
 Opus and Sol each review every version from its frames, captions and, for C, the receipt as an image. They answer the questions, approve or request changes, and pick the better version of each pair, shown in both orders. Code scores the answers. `claude plugin eval` doesn't fit here: it has no code graders, and it tests an agent using the plugin, not a finished review.
 

@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, renameSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { lineSeconds } from '../../contract';
-import { loadScenario, scenarioDirs, type Side, type Receipt, type Request } from './scenario';
+import { HALF, loadScenario, scenarioDirs, type Side, type Receipt, type Request } from './scenario';
 
 const APP = join(import.meta.dir, 'app');
 const SESSION = `reviewability-${process.pid}`;
@@ -33,7 +33,7 @@ async function record(dir: string, side: Side) {
       if (i > 100) throw new Error('app did not start');
       await Bun.sleep(100);
     }
-    browser('set', 'viewport', '1280', '720');
+    browser('set', 'viewport', String(HALF.width), String(HALF.height));
     browser('open', 'about:blank');
     const video = join(dir, `${side}.webm`);
     browser('record', 'start', video);
@@ -54,7 +54,7 @@ async function record(dir: string, side: Side) {
     const trim = Bun.spawnSync(['ffmpeg', '-loglevel', 'error', '-i', video, '-t', String(windows.at(-1)!.end), '-c', 'copy', '-an', trimmed], { stderr: 'pipe' });
     if (trim.exitCode !== 0) throw new Error(`ffmpeg trim ${video}: ${trim.stderr.toString()}`);
     renameSync(trimmed, video);
-    return { windows: windows.map(({ start, end }) => ({ start: round(start), end: round(end) })), requests: requestsByStep(spansFile, windows) };
+    return { windows: windows.map(({ start, end }) => ({ start: tenth(start), end: tenth(end) })), requests: requestsByStep(spansFile, windows) };
   } finally {
     app.kill();
     await app.exited;
@@ -62,7 +62,8 @@ async function record(dir: string, side: Side) {
   }
 }
 
-const round = (seconds: number) => Math.round(seconds * 10) / 10;
+// Down, so the last window never ends past the trimmed recording.
+const tenth = (seconds: number) => Math.floor(seconds * 10) / 10;
 
 type Span = { name: string; context: { trace_id: string }; parent_id: string | null; start_time: string; end_time: string; attributes: Record<string, unknown> };
 

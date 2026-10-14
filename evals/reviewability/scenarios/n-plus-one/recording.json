@@ -46,7 +46,7 @@
     "request": "GET /projects/{pid}",
     "status": 200,
     "sql": 4,
-    "ms": 2,
+    "ms": 3,
     "repeated": [],
     "logs": []
    }
@@ -66,10 +66,10 @@
   "after": [
    {
     "start": 0,
-    "end": 7
+    "end": 6.9
    },
    {
-    "start": 7,
+    "start": 6.9,
     "end": 13.5
    }
   ]

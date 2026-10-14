@@ -19,3 +19,15 @@ fetch(video.currentSrc || video.src).then(response => {
   video.playbackRate = playbackRate;
   if (!paused) void video.play();
 }, error => console.warn('video-review: download failed; seeking needs a server with Range support', error));
+
+const notes = document.querySelector('.notes');
+if (notes) {
+  const articles = [...notes.querySelectorAll('article')];
+  // timeupdate fires as playback moves and after every seek.
+  video.addEventListener('timeupdate', () => {
+    const current = articles.findLast(article => Number(article.dataset['at']) <= video.currentTime);
+    if (!current?.hidden) return;
+    for (const article of articles) article.hidden = article !== current;
+    notes.scrollTop = 0;
+  });
+}

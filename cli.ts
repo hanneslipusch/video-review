@@ -6,7 +6,7 @@ import { createReadStream } from 'node:fs';
 import { assets, template } from './assets.generated';
 import { speak, tts } from './voiceover';
 import { parseArgs } from 'node:util';
-import { CHAPTER_LIMIT, FPS, isImage, lineSeconds, parseLines, parseReview, pace, vtt, chaptersVtt, renderPlayer } from './contract';
+import { CHAPTER_LIMIT, FPS, isImage, lineSeconds, notesHtml, parseLines, parseReview, pace, vtt, chaptersVtt, renderPlayer } from './contract';
 
 const FRAME_STEP = 0.5, PREVIEW_RATE = 2.5;
 // A 16:9 frame fills common screens in fullscreen; every source fits inside it.
@@ -36,6 +36,8 @@ chapter is a short label of 1–${CHAPTER_LIMIT} characters; text is the caption
 Optional source names another video or a PNG/JPG card, relative to steps.json. Steps without it use <video>
 and stay ordered; other videos use their own clock and may repeat or reorder. An image step has no start or end:
 {"source":"what-changed.png","chapter":"What changed","text":"Watch the attachment when the model switches."}
+Optional notes names a Markdown file, relative to steps.json, that the page shows beside the video while its step plays,
+for what the footage cannot show, such as query counts or logs. timeline.json carries each note's text.
 Every source fits a ${WIDTH}×${HEIGHT} frame, with bars where its shape differs.
 Seconds refer to the source media clock. Each interval plays at original speed, captioned and spoken
 for its whole length, and must last as long as its line needs: the build names each step that is too short.
@@ -115,6 +117,13 @@ async function build(video: string, input: string, destination: string, key: str
       throw new Error(`Step ${index + 1}: end exceeds ${basename(path)} duration.`);
     entry.steps.push(index);
   }
+  // From here on a step's notes hold the Markdown itself, which timeline.json and the page carry.
+  for (const [index, step] of review.steps.entries()) {
+    if (step.notes === undefined) continue;
+    const path = resolve(dirname(resolve(input)), step.notes);
+    step.notes = (await readFile(path, 'utf8').catch(() => { throw new Error(`Step ${index + 1}: cannot read notes ${path}.`); })).trim();
+    if (!step.notes) throw new Error(`Step ${index + 1}: notes ${path} is empty.`);
+  }
   // Fail before paid speech when this FFmpeg lacks libx264.
   await run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=s=2x2:d=0.04', '-c:v', 'libx264', '-f', 'null', '-']);
   const existing = await readdir(target).catch(() => null);
@@ -183,7 +192,7 @@ async function build(video: string, input: string, destination: string, key: str
     await writeFile(join(output, 'timeline.json'), JSON.stringify(manifest, null, 2) + '\n');
     await mkdir(join(output, 'vendor'));
     for (const [name, content] of Object.entries(assets)) await writeFile(join(output, 'vendor', name), Buffer.from(content, 'base64'));
-    await writeFile(join(output, 'index.html'), renderPlayer(template, review.title));
+    await writeFile(join(output, 'index.html'), renderPlayer(template, review.title, notesHtml(timeline)));
     await rm(target, { recursive: true, force: true });
     await rename(output, target);
     console.log(JSON.stringify({ player: join(target, 'index.html'), video: join(target, 'video.mp4'), preview: join(target, 'preview.gif'), frames: timeline.map((_, i) => join(target, 'frames', `${i + 1}.jpg`)) }));

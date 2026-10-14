@@ -2,6 +2,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 export type Side = 'before' | 'after';
+// Each side is recorded at the size it shows in the 1920×1080 side-by-side frame, under a band for its label, so its text stays at native size.
+export const LABEL_BAND = 40, HALF = { width: 960, height: 1080 - LABEL_BAND };
 export type Clip = { source: string; start: number; end: number };
 export type Request = { request: string; status: number; sql: number; ms: number; repeated: { statement: string; count: number }[]; logs: string[] };
 export type Receipt = { before: Request[][]; after: Request[][]; windows: Record<Side, { start: number; end: number }[]> };
