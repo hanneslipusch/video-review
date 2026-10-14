@@ -7,3 +7,4 @@ This repo is public: anyone can read every commit, PR, issue and comment.
 - Before pushing or editing a PR, reread the diff and the text as that stranger.
 - `bun run check` and `bun run test` pass before every push. `video-review build --help` gives the input format.
 - A PR body says what changed, how you checked it, and what you did not.
+- Show a visible change in its PR: push images or `preview.gif` (under 5 MiB) to the `media` branch as `pr-<n>/<file>` and embed `https://raw.githubusercontent.com/hanneslipusch/video-review/media/pr-<n>/<file>`; link videos.
