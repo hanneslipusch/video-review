@@ -89,9 +89,9 @@ function frames(dir: string): { chapter: string; caption: string; frames: string
 const CARD_CSS = `body{margin:0;font:22px/1.45 system-ui,sans-serif;color:#1f2933;background:#fff}
 .card{padding:22px 28px;width:900px}h2{font-size:24px;margin:0 0 12px}
 table{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{text-align:left;padding:6px 10px;border-bottom:1px solid #e3e6ea;vertical-align:top}
-th{background:#f3f4f6}code{font:19px ui-monospace,monospace;background:#f3f4f6;padding:1px 4px;border-radius:4px}p{margin:6px 0}`;
+th{background:#f3f4f6}code{font:19px ui-monospace,monospace;background:#f3f4f6;padding:1px 4px;border-radius:4px}p{margin:6px 0}ul{margin:6px 0;padding-left:22px}pre{margin:6px 0;padding:8px 10px;background:#f3f4f6;border-radius:6px;white-space:pre-wrap}pre code{padding:0}`;
 export const receiptHtml = (chapter: string, markdown: string) =>
-  `<div class="card"><h2>Receipt · ${Bun.escapeHTML(chapter)}</h2>${Bun.markdown.html(markdown, { tables: true })}</div>`;
+  `<div class="card"><h2>${Bun.escapeHTML(chapter)}</h2>${Bun.markdown.html(markdown, { tables: true })}</div>`;
 
 async function cards(scenario: Scenario, dir: string): Promise<(string | undefined)[]> {
   mkdirSync(join(dir, 'cards'), { recursive: true });

@@ -80,7 +80,7 @@ Commit the generated `bin/video-review` with the source. The default Haiku judge
 
 ### Reviewability eval
 
-`evals/reviewability/` asks whether a review is easier to judge as before then after (A), side by side (B), or side by side with a per-chapter backend receipt beside the video (C). The receipt lists requests, SQL query counts, timings, and warnings or errors. Each scenario records one change twice with the same steps. Its `scenario.json` fixes the questions and the true answers, plus whether the change should block a merge. The public scenarios plant an N+1 query, a swallowed webhook error, and a wrong footer count, and include a real speed-up and a sort change as controls.
+`evals/reviewability/` asks whether a review is easier to judge as before then after (A), side by side (B), or side by side with a per-chapter backend receipt beside the video (C). The receipt shows each request's query count before → after, and diffs repeated queries and log lines; status and time appear only when they change. Each scenario records one change twice with the same steps. Its `scenario.json` fixes the questions and the true answers, plus whether the change should block a merge. The public scenarios plant an N+1 query, a swallowed webhook error, and a wrong footer count, and include a real speed-up and a sort change as controls.
 
 Opus and Sol each review every version from its frames, captions and, for C, the receipt as an image. They answer the questions, approve or request changes, and pick the better version of each pair, shown in both orders. Code scores the answers. `claude plugin eval` doesn't fit here: it has no code graders, and it tests an agent using the plugin, not a finished review.
 
