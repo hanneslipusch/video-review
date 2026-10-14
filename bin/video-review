@@ -17,7 +17,7 @@ var template = `<!doctype html>
 <link rel="stylesheet" href="vendor/skin.css">
 <style>
 :root{font-family:system-ui,sans-serif;color:#20302a;background:#f7f8f6;color-scheme:light}
-*{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:auto;padding:40px 24px}
+*{box-sizing:border-box}body{margin:0}main{max-width:{{PAGE}}px;margin:auto;padding:40px 24px}
 h1{font-size:clamp(22px,3vw,34px);font-weight:600;letter-spacing:-.02em;margin:0 0 16px}
 p,details{color:#5c6a60;font-size:14px;line-height:1.5;margin:0 0 16px}a{color:#2f5a44}
 .media-skin{--media-border-radius:12px;--media-controls-gradient:linear-gradient(to top,rgb(0 0 0/.62),rgb(0 0 0/.3) 60px,transparent 128px);background:#e9ece8}
@@ -37,7 +37,7 @@ dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:10px 0
 <body><main>
 <h1>{{TITLE}}</h1>
 <video-player poster="poster.jpg">
-<media-container class="media-skin media-container video-skin" data-theme="neutral" data-preset="video" style="aspect-ratio:16/9">
+<media-container class="media-skin media-container video-skin" data-theme="neutral" data-preset="video" style="aspect-ratio:{{ASPECT}}">
 <video src="video.mp4" playsinline preload="auto">
 <track kind="captions" src="captions.vtt" srclang="en" label="Observations" default>
 <track kind="chapters" src="chapters.vtt" srclang="en" default>
@@ -180,7 +180,7 @@ var SPEECH_TAIL_SECONDS = 0.5;
 var isImage = (path) => /\.(png|jpe?g)$/i.test(path);
 function parseReview(value, duration) {
   if (!value || typeof value !== "object" || !("title" in value) || !("steps" in value))
-    throw new Error("Expected {title, steps: [{start, end, chapter, text, source?}]}. See video-review build --help.");
+    throw new Error("Expected {title, steps: [{start, end, chapter, text, source?, notes?}]}. See video-review build --help.");
   if (typeof value.title !== "string" || !value.title.trim() || value.title.length > 160)
     throw new Error("title must contain 1\u2013160 characters.");
   if (!Array.isArray(value.steps) || !value.steps.length)
@@ -190,9 +190,7 @@ function parseReview(value, duration) {
     if (!step || typeof step !== "object" || !("chapter" in step) || !("text" in step))
       throw new Error(`Step ${index + 1} needs chapter and text.`);
     const { chapter, text } = step;
-    const source = "source" in step ? step.source : undefined;
-    if (source !== undefined && (typeof source !== "string" || !source.trim() || /[\u0000-\u001f]/.test(source)))
-      throw new Error(`Step ${index + 1}: source must be a nonempty local file path.`);
+    const source = localPath(step, "source", index), notes = localPath(step, "notes", index);
     const image = source !== undefined && isImage(source);
     if (image && (("start" in step) || ("end" in step)))
       throw new Error(`Step ${index + 1}: an image step takes no start or end; it shows for as long as its line needs.`);
@@ -207,9 +205,15 @@ function parseReview(value, duration) {
       throw new Error(`Step ${index + 1}: chapter must be one line of 1\u2013${CHAPTER_LIMIT} characters without VTT delimiters.`);
     if (source === undefined)
       previousEnd = end;
-    return { start, end, chapter: chapter.trim(), text: text.trim(), ...source === undefined ? {} : { source } };
+    return { start, end, chapter: chapter.trim(), text: text.trim(), ...source === undefined ? {} : { source }, ...notes === undefined ? {} : { notes } };
   });
   return { title: value.title.trim(), steps };
+}
+function localPath(step, name, index) {
+  const path = name in step ? Reflect.get(step, name) : undefined;
+  if (path !== undefined && (typeof path !== "string" || !path.trim() || /[\u0000-\u001f]/.test(path)))
+    throw new Error(`Step ${index + 1}: ${name} must be a nonempty local file path.`);
+  return path;
 }
 function checkLine(text, index) {
   if (typeof text !== "string" || !text.trim() || text.length > 320 || /[\r\n\u0000-\u001f]|-->/.test(text))
@@ -249,11 +253,11 @@ function vttTime(seconds) {
   const parts = [Math.floor(milliseconds / 3600000), Math.floor(milliseconds / 60000) % 60, Math.floor(milliseconds / 1000) % 60];
   return parts.map((value) => String(value).padStart(2, "0")).join(":") + "." + String(milliseconds % 1000).padStart(3, "0");
 }
-function vtt(cues) {
+function vtt(cues, settings = "") {
   return `WEBVTT
 
 ${cues.map(({ start, end, text, id }) => `${id === undefined ? "" : `${id}
-`}${vttTime(start)} --> ${vttTime(end)}
+`}${vttTime(start)} --> ${vttTime(end)}${settings && ` ${settings}`}
 ${text}
 `).join(`
 `)}`;
@@ -262,13 +266,31 @@ function chaptersVtt(chapters) {
   const edge = (seconds) => Math.ceil(seconds * 1000 - 0.000001) / 1000;
   return vtt(chapters.map((s, i) => ({ id: i + 1, start: edge(s.at), end: edge(s.until), text: s.chapter })));
 }
-var renderPlayer = (template, title) => template.replaceAll("{{TITLE}}", () => Bun.escapeHTML(title));
+var notePage = (chapter, markdown, background) => `<!doctype html><meta charset="utf-8"><style>
+body{margin:0;padding:24px;font:24px/1.45 system-ui,sans-serif;color:#20302a;background:${background}}
+article{padding:20px 22px;border:2px solid #e1e5e0;border-radius:16px;background:#fff}
+h2{margin:0 0 16px;font-size:20px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5c6a60}
+p,ul,ol,pre,table{margin:0 0 18px}article>:last-child{margin-bottom:0}ul,ol{padding-left:30px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:8px 12px 8px 0;border-bottom:2px solid #e9ece8;text-align:left;vertical-align:top}th{font-weight:600}
+code{font:20px/1.45 ui-monospace,monospace;overflow-wrap:anywhere}pre{padding:10px 12px;border-radius:10px;background:#f3f5f2;white-space:pre-wrap}
+</style><article><h2>${Bun.escapeHTML(chapter)}</h2>${Bun.markdown.html(markdown, { noHtmlBlocks: true, noHtmlSpans: true, autolinks: true })}</article>`;
+function renderPlayer(template, title, width, height) {
+  const divisor = (a, b) => b ? divisor(b, a % b) : a;
+  const values = {
+    TITLE: Bun.escapeHTML(title),
+    ASPECT: `${width / divisor(width, height)}/${height / divisor(width, height)}`,
+    PAGE: String(Math.round(48 + 1072 * 9 / 16 * width / height))
+  };
+  return template.replace(/\{\{(TITLE|ASPECT|PAGE)\}\}/g, (_, key) => values[key]);
+}
 
 // cli.ts
 var FRAME_STEP = 0.5;
 var PREVIEW_RATE = 2.5;
 var WIDTH = 1920;
 var HEIGHT = 1080;
+var NOTE_WIDTH = 640;
+var NOTE_BACKGROUND = "#f7f8f6";
 var help = `video-review \u2014 turn an existing recording into a captioned review
 
   video-review build <video> <steps.json> --out <directory>
@@ -293,6 +315,9 @@ chapter is a short label of 1\u2013${CHAPTER_LIMIT} characters; text is the capt
 Optional source names another video or a PNG/JPG card, relative to steps.json. Steps without it use <video>
 and stay ordered; other videos use their own clock and may repeat or reorder. An image step has no start or end:
 {"source":"what-changed.png","chapter":"What changed","text":"Watch the attachment when the model switches."}
+Optional notes names a Markdown file, relative to steps.json, drawn in a ${NOTE_WIDTH} px panel right of the footage while
+its step plays, for what the footage cannot show, such as query counts or logs. It needs Chrome, Chromium, Edge or
+Brave outside macOS, must fit ${HEIGHT} px tall, and shows as plain text in timeline.json.
 Every source fits a ${WIDTH}\xD7${HEIGHT} frame, with bars where its shape differs.
 Seconds refer to the source media clock. Each interval plays at original speed, captioned and spoken
 for its whole length, and must last as long as its line needs: the build names each step that is too short.
@@ -372,6 +397,16 @@ async function build(video, input, destination, key) {
       throw new Error(`Step ${index + 1}: end exceeds ${basename(path)} duration.`);
     entry.steps.push(index);
   }
+  for (const [index, step] of review.steps.entries()) {
+    if (step.notes === undefined)
+      continue;
+    const path = resolve(dirname2(resolve(input)), step.notes);
+    step.notes = (await readFile(path, "utf8").catch(() => {
+      throw new Error(`Step ${index + 1}: cannot read notes ${path}.`);
+    })).trim();
+    if (!step.notes)
+      throw new Error(`Step ${index + 1}: notes ${path} is empty.`);
+  }
   await run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=s=2x2:d=0.04", "-c:v", "libx264", "-f", "null", "-"]);
   const existing = await readdir(target).catch(() => null);
   if (existing?.length && !existing.includes("timeline.json"))
@@ -381,6 +416,8 @@ async function build(video, input, destination, key) {
   await mkdir2(output);
   try {
     await mkdir2(join2(output, "frames"));
+    const panels = await drawNotes(review.steps, output);
+    const width = panels.some(Boolean) ? WIDTH + NOTE_WIDTH : WIDTH;
     const speech = [], lengths = [];
     for (const [index, step] of review.steps.entries()) {
       if (!key) {
@@ -400,12 +437,24 @@ async function build(video, input, destination, key) {
       args.push(...image ? ["-loop", "1", "-framerate", String(FPS)] : [], "-reinit_filter:v", "0", "-i", path);
     for (const path of speech)
       args.push("-i", path);
+    const panelInputs = new Map;
+    for (const [index, path] of panels.entries()) {
+      if (!path)
+        continue;
+      panelInputs.set(index, media.size + speech.length + panelInputs.size);
+      args.push("-loop", "1", "-framerate", String(FPS), "-i", path);
+    }
     const filters = [];
     for (const [inputIndex, { steps }] of [...media.values()].entries())
       filters.push(`[${inputIndex}:v]split=${steps.length}${steps.map((i) => `[source${i}]`).join("")}`);
     for (const [index, step] of timeline.entries()) {
       const length = step.until - step.at;
-      filters.push(`[source${index}]trim=start=${step.start}:end=${step.start + length},setpts=PTS-STARTPTS,fps=${FPS},scale=trunc(iw*sar/2)*2:ih,scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1,tpad=stop_mode=clone:stop_duration=0.1,trim=duration=${length},setpts=PTS-STARTPTS[v${index}]`);
+      const footage = `[source${index}]trim=start=${step.start}:end=${step.start + length},setpts=PTS-STARTPTS,fps=${FPS},scale=trunc(iw*sar/2)*2:ih,scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1,tpad=stop_mode=clone:stop_duration=0.1,trim=duration=${length},setpts=PTS-STARTPTS`;
+      const panel = panelInputs.get(index);
+      if (panel !== undefined)
+        filters.push(`${footage}[f${index}]`, `[${panel}:v]scale=${NOTE_WIDTH}:${HEIGHT},setsar=1,format=yuv420p,trim=duration=${length},setpts=PTS-STARTPTS[n${index}]`, `[f${index}][n${index}]hstack[v${index}]`);
+      else
+        filters.push(`${footage}${width > WIDTH ? `,pad=${width}:${HEIGHT}:0:0:${NOTE_BACKGROUND}` : ""}[v${index}]`);
       if (voiceover)
         filters.push(`[${media.size + index}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,apad,atrim=duration=${length},asetpts=PTS-STARTPTS[a${index}]`);
     }
@@ -414,10 +463,10 @@ async function build(video, input, destination, key) {
     const rendered = (await probe(join2(output, "video.mp4"), true)).seconds;
     if (Math.abs(rendered - total) > 0.1)
       throw new Error(`Rendered duration ${rendered.toFixed(3)}s differs from the planned ${total.toFixed(3)}s. The recording may change frame properties midstream.`);
-    await writeFile2(join2(output, "captions.vtt"), vtt(timeline.map((s, i) => ({ id: i + 1, start: s.at, end: s.until, text: s.text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") }))));
+    await writeFile2(join2(output, "captions.vtt"), vtt(timeline.map((s, i) => ({ id: i + 1, start: s.at, end: s.until, text: s.text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") })), width > WIDTH ? `position:${100 * WIDTH / 2 / width}% size:${100 * WIDTH / width}%` : ""));
     await writeFile2(join2(output, "chapters.vtt"), chaptersVtt(timeline));
-    const captioned = "subtitles=captions.vtt";
-    await run(["ffmpeg", "-v", "error", "-i", "video.mp4", "-vf", `${captioned},setpts=PTS/${PREVIEW_RATE},fps=10,scale='min(960,iw)':-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, "preview.gif"], output);
+    const captioned = width > WIDTH ? `subtitles=captions.vtt:force_style='MarginR=${Math.round(384 * NOTE_WIDTH / width)}'` : "subtitles=captions.vtt";
+    await run(["ffmpeg", "-v", "error", "-i", "video.mp4", "-vf", `${captioned},setpts=PTS/${PREVIEW_RATE},fps=10,scale=-2:'min(540,ih)':flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, "preview.gif"], output);
     for (let first = 0;first < timeline.length; first += 33) {
       const picks = timeline.slice(first, first + 33).flatMap((s) => [s.at + 0.1, (s.at + s.until) / 2, s.until - 1 / FPS].map((t) => `eq(n,${Math.round(t * FPS)})`));
       await run([
@@ -427,7 +476,7 @@ async function build(video, input, destination, key) {
         "-i",
         "video.mp4",
         "-vf",
-        `${captioned},select='${picks.join("+")}',scale='min(960,iw)':-2,tile=3x1:padding=8:color=white`,
+        `${captioned},select='${picks.join("+")}',scale=-2:'min(540,ih)',tile=3x1:padding=8:color=white`,
         "-fps_mode",
         "vfr",
         "-q:v",
@@ -442,7 +491,7 @@ async function build(video, input, destination, key) {
         throw new Error(`Frames for step ${index + 1} are missing.`);
     await run(["ffmpeg", "-v", "error", "-ss", String(timeline[0].until - 0.1), "-i", "video.mp4", "-frames:v", "1", "-update", "1", "-q:v", "2", "poster.jpg"], output);
     const count = Math.ceil(total / 2), columns = Math.min(10, count), rows = Math.ceil(count / columns);
-    const tileHeight = 2 * Math.round(160 * HEIGHT / WIDTH);
+    const tileHeight = 180, tileWidth = 2 * Math.round(tileHeight / 2 * width / HEIGHT);
     await run([
       "ffmpeg",
       "-v",
@@ -450,7 +499,7 @@ async function build(video, input, destination, key) {
       "-i",
       "video.mp4",
       "-vf",
-      `fps=1/2:start_time=0:round=up,scale=320:${tileHeight},tile=${columns}x${rows}`,
+      `fps=1/2:start_time=0:round=up,scale=${tileWidth}:${tileHeight},tile=${columns}x${rows}`,
       "-frames:v",
       "1",
       "-update",
@@ -466,7 +515,7 @@ async function build(video, input, destination, key) {
     await writeFile2(join2(output, "thumbnails.vtt"), vtt(Array.from({ length: count }, (_, i) => ({
       start: i * 2,
       end: Math.min(total, (i + 1) * 2),
-      text: `thumbnails.jpg#xywh=${i % columns * 320},${Math.floor(i / columns) * tileHeight},320,${tileHeight}`
+      text: `thumbnails.jpg#xywh=${i % columns * tileWidth},${Math.floor(i / columns) * tileHeight},${tileWidth},${tileHeight}`
     }))));
     const manifest = {
       title: review.title,
@@ -479,7 +528,8 @@ async function build(video, input, destination, key) {
     await mkdir2(join2(output, "vendor"));
     for (const [name, content] of Object.entries(assets))
       await writeFile2(join2(output, "vendor", name), Buffer.from(content, "base64"));
-    await writeFile2(join2(output, "index.html"), renderPlayer(template, review.title));
+    await writeFile2(join2(output, "index.html"), renderPlayer(template, review.title, width, HEIGHT));
+    await rm(join2(output, "notes"), { recursive: true, force: true });
     await rm(target, { recursive: true, force: true });
     await rename2(output, target);
     console.log(JSON.stringify({ player: join2(target, "index.html"), video: join2(target, "video.mp4"), preview: join2(target, "preview.gif"), frames: timeline.map((_, i) => join2(target, "frames", `${i + 1}.jpg`)) }));
@@ -487,6 +537,28 @@ async function build(video, input, destination, key) {
     await rm(output, { recursive: true, force: true });
     throw error;
   }
+}
+async function drawNotes(steps, output) {
+  if (steps.every((step) => step.notes === undefined))
+    return [];
+  await mkdir2(join2(output, "notes"));
+  await using view = new Bun.WebView({ width: NOTE_WIDTH, height: HEIGHT });
+  await view.navigate("about:blank");
+  await view.resize(NOTE_WIDTH, HEIGHT);
+  const panels = [];
+  for (const [index, step] of steps.entries()) {
+    if (step.notes === undefined) {
+      panels.push(undefined);
+      continue;
+    }
+    await view.navigate(`data:text/html;base64,${Buffer.from(notePage(step.chapter, step.notes, NOTE_BACKGROUND)).toString("base64")}`);
+    if (await view.evaluate(`document.documentElement.scrollHeight > ${HEIGHT} || document.documentElement.scrollWidth > ${NOTE_WIDTH}`))
+      throw new Error(`Step ${index + 1}: notes overflow the ${NOTE_WIDTH}\xD7${HEIGHT} px panel. Shorten them or break long lines.`);
+    const path = join2(output, "notes", `${index + 1}.png`);
+    await writeFile2(path, await view.screenshot({ encoding: "buffer" }));
+    panels.push(path);
+  }
+  return panels;
 }
 async function lines(input, key) {
   if (key)

@@ -1,0 +1,111 @@
+{
+  "title": "Notify the team webhook when a todo is done",
+  "description": "Ticking a todo now posts it to the team webhook, so the channel hears about finished work.",
+  "before": {
+    "variant": ""
+  },
+  "after": {
+    "variant": "webhook"
+  },
+  "steps": [
+    {
+      "chapter": "Project open",
+      "text": "Open Alder Creek Solar. Write the report is its only todo.",
+      "actions": [
+        [
+          "open",
+          "{url}/projects/1"
+        ]
+      ]
+    },
+    {
+      "chapter": "Todo added",
+      "text": "Type Buy milk into New todo and press Add.",
+      "actions": [
+        [
+          "find",
+          "label",
+          "New todo",
+          "fill",
+          "Buy milk"
+        ],
+        [
+          "find",
+          "role",
+          "button",
+          "click",
+          "--name",
+          "Add"
+        ]
+      ]
+    },
+    {
+      "chapter": "Todo ticked",
+      "text": "Tick Buy milk. It is struck through.",
+      "actions": [
+        [
+          "find",
+          "role",
+          "button",
+          "click",
+          "--name",
+          "Toggle Buy milk"
+        ]
+      ]
+    }
+  ],
+  "verdict": {
+    "blocking": true,
+    "category": "error_or_warning",
+    "why": "Every tick logs ERROR webhook delivery failed (connection refused); the feature never delivers and the UI hides it.",
+    "evidence": "webhook|refused|deliver"
+  },
+  "questions": [
+    {
+      "id": "ticked-done",
+      "kind": "visible",
+      "question": "In the after recording, is Buy milk shown as done once it is ticked?",
+      "options": [
+        "yes",
+        "no",
+        "cannot tell"
+      ],
+      "answer": "yes"
+    },
+    {
+      "id": "ui-error",
+      "kind": "visible",
+      "question": "Does the after version show the user any error or warning on screen?",
+      "options": [
+        "yes",
+        "no",
+        "cannot tell"
+      ],
+      "answer": "no"
+    },
+    {
+      "id": "server-error",
+      "kind": "backend",
+      "question": "Does any request in the after version log a warning or error on the server?",
+      "options": [
+        "yes",
+        "no",
+        "cannot tell"
+      ],
+      "answer": "yes"
+    },
+    {
+      "id": "error-source",
+      "kind": "backend",
+      "question": "Which action does a server-side warning or error in the after version come from?",
+      "options": [
+        "opening the project",
+        "adding a todo",
+        "ticking a todo",
+        "there is none",
+        "cannot tell"
+      ],
+      "answer": "ticking a todo"
+    }
+  ]
+}

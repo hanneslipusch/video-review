@@ -24,9 +24,10 @@ test('color metadata changes preserve every interval', async () => {
     run(['ffmpeg', '-v', 'error', '-f', 'concat', '-safe', '0', '-i', join(dir, 'concat.txt'), '-c', 'copy', join(dir, 'source.mp4')]);
     await writeFile(join(dir, 'steps.json'), JSON.stringify({ title: 'Metadata transition', steps: [
       { start: 0, end: 2, chapter: 'Blue frame', text: 'Blue stayed.' },
-      { start: 2, end: 4, chapter: 'Green frame', text: 'Green showed.' },
+      { start: 2, end: 4, chapter: 'Green frame', text: 'Green showed.', notes: 'notes.md' },
       { start: 4, end: 8.4, chapter: 'Red frame', text: 'Red appeared.' },
     ] }));
+    await writeFile(join(dir, 'notes.md'), '| Queries |\n| --- |\n| 3 → 23 |\n');
     const out = join(dir, 'review');
     const build = (destination: string) => run(['bun', 'bin/video-review', 'build', join(dir, 'source.mp4'), join(dir, 'steps.json'), '--out', destination]);
     build(out);
@@ -42,7 +43,15 @@ test('color metadata changes preserve every interval', async () => {
       const rgb = await readFile(pixel);
       expect(rgb[channel]!).toBeGreaterThan(Math.max(...rgb.filter((_, index) => index !== channel)));
     }
-    expect(JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8')).voiceover).toBeNull();
+    const timeline = JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8'));
+    expect([timeline.voiceover, timeline.steps[1].notes]).toEqual([null, '| Queries |\n| --- |\n| 3 → 23 |']);
+    // The note widens the frame by its panel; only the green step's panel holds dark text.
+    expect(JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'stream=width', '-of', 'csv=p=0', join(out, 'video.mp4')]))).toBe(2560);
+    for (const [i, text] of [[0, false], [1, true], [2, false]] as const) {
+      const panel = join(dir, `panel-${i}.gray`);
+      run(['ffmpeg', '-v', 'error', '-i', join(out, 'frames', `${i + 1}.jpg`), '-vf', 'crop=320:200:960:0,format=gray', '-frames:v', '1', '-f', 'rawvideo', panel]);
+      expect(Math.min(...await readFile(panel)) < 60).toBe(text);
+    }
     build(out);
     await writeFile(join(dir, 'notes.txt'), 'keep');
     expect(() => build(dir)).toThrow('not a video-review output');
@@ -79,7 +88,8 @@ test('mixed sources retain image and video outcomes at the main canvas size', as
       const rgb = await readFile(file);
       expect(rgb[channel]!).toBeGreaterThan(Math.max(...rgb.subarray(0, 3).filter((_, j) => j !== channel)));
     }
-    for (const invalid of [{ ...step, source: 'other.mp4', end: 5 }, { ...card, start: 0 }]) {
+    await writeFile(join(dir, 'long.md'), '- line\n'.repeat(60));
+    for (const invalid of [{ ...step, source: 'other.mp4', end: 5 }, { ...card, start: 0 }, { ...step, notes: 'long.md' }]) {
       await writeFile(input, JSON.stringify({ title: 'Invalid', steps: [invalid] }));
       expect(build).toThrow();
       expect(JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8')).title).toBe('Mixed');

@@ -1,0 +1,68 @@
+{
+ "before": [
+  [
+   {
+    "request": "GET /",
+    "status": 200,
+    "sql": 3,
+    "ms": 2,
+    "repeated": [],
+    "logs": []
+   }
+  ],
+  [
+   {
+    "request": "GET /projects/{pid}",
+    "status": 200,
+    "sql": 4,
+    "ms": 2,
+    "repeated": [],
+    "logs": []
+   }
+  ]
+ ],
+ "after": [
+  [
+   {
+    "request": "GET /",
+    "status": 200,
+    "sql": 3,
+    "ms": 2,
+    "repeated": [],
+    "logs": []
+   }
+  ],
+  [
+   {
+    "request": "GET /projects/{pid}",
+    "status": 200,
+    "sql": 4,
+    "ms": 2,
+    "repeated": [],
+    "logs": []
+   }
+  ]
+ ],
+ "windows": {
+  "before": [
+   {
+    "start": 0,
+    "end": 7
+   },
+   {
+    "start": 7,
+    "end": 13.7
+   }
+  ],
+  "after": [
+   {
+    "start": 0,
+    "end": 7
+   },
+   {
+    "start": 7,
+    "end": 13.7
+   }
+  ]
+ }
+}

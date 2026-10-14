@@ -1,0 +1,88 @@
+{
+  "title": "Sort projects by open tasks",
+  "description": "The Projects page lists the projects with the most open tasks first.",
+  "before": {
+    "variant": ""
+  },
+  "after": {
+    "variant": "sort_by_open"
+  },
+  "steps": [
+    {
+      "chapter": "Projects",
+      "text": "Open Projects. Ten projects list their owner and open tasks.",
+      "actions": [
+        [
+          "open",
+          "{url}/"
+        ]
+      ]
+    },
+    {
+      "chapter": "First listed",
+      "text": "Open the first project in the list to see its open tasks.",
+      "actions": [
+        [
+          "find",
+          "first",
+          "td a",
+          "click"
+        ]
+      ]
+    }
+  ],
+  "verdict": {
+    "blocking": false,
+    "category": "none",
+    "why": "The intended visible change; same queries, no new logs."
+  },
+  "questions": [
+    {
+      "id": "first-after",
+      "kind": "visible",
+      "question": "Which project is first in the after list?",
+      "options": [
+        "Alder Creek Solar",
+        "Cedar Ridge Wind",
+        "Hazel Grove Solar",
+        "cannot tell"
+      ],
+      "answer": "Hazel Grove Solar"
+    },
+    {
+      "id": "order-after",
+      "kind": "visible",
+      "question": "How is the after list ordered?",
+      "options": [
+        "alphabetically",
+        "by open tasks, most first",
+        "by owner",
+        "cannot tell"
+      ],
+      "answer": "by open tasks, most first"
+    },
+    {
+      "id": "queries",
+      "kind": "backend",
+      "question": "Compared with before, how many SQL queries does the after version run for the requests in this review?",
+      "options": [
+        "more",
+        "fewer",
+        "the same",
+        "cannot tell"
+      ],
+      "answer": "the same"
+    },
+    {
+      "id": "new-log",
+      "kind": "backend",
+      "question": "Does the after version log any warning or error on the server that before does not?",
+      "options": [
+        "yes",
+        "no",
+        "cannot tell"
+      ],
+      "answer": "no"
+    }
+  ]
+}

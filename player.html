@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="vendor/skin.css">
 <style>
 :root{font-family:system-ui,sans-serif;color:#20302a;background:#f7f8f6;color-scheme:light}
-*{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:auto;padding:40px 24px}
+*{box-sizing:border-box}body{margin:0}main{max-width:{{PAGE}}px;margin:auto;padding:40px 24px}
 h1{font-size:clamp(22px,3vw,34px);font-weight:600;letter-spacing:-.02em;margin:0 0 16px}
 p,details{color:#5c6a60;font-size:14px;line-height:1.5;margin:0 0 16px}a{color:#2f5a44}
 .media-skin{--media-border-radius:12px;--media-controls-gradient:linear-gradient(to top,rgb(0 0 0/.62),rgb(0 0 0/.3) 60px,transparent 128px);background:#e9ece8}
@@ -26,7 +26,7 @@ dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:10px 0
 <body><main>
 <h1>{{TITLE}}</h1>
 <video-player poster="poster.jpg">
-<media-container class="media-skin media-container video-skin" data-theme="neutral" data-preset="video" style="aspect-ratio:16/9">
+<media-container class="media-skin media-container video-skin" data-theme="neutral" data-preset="video" style="aspect-ratio:{{ASPECT}}">
 <video src="video.mp4" playsinline preload="auto">
 <track kind="captions" src="captions.vtt" srclang="en" label="Observations" default>
 <track kind="chapters" src="chapters.vtt" srclang="en" default>
