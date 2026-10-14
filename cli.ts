@@ -37,7 +37,7 @@ Optional source names another video or a PNG/JPG card, relative to steps.json. S
 and stay ordered; other videos use their own clock and may repeat or reorder. An image step has no start or end:
 {"source":"what-changed.png","chapter":"What changed","text":"Watch the attachment when the model switches."}
 Optional notes names a Markdown file, relative to steps.json, that the page shows beside the video while its step plays,
-for what the footage cannot show, such as query counts or logs. timeline.json carries each note's text.
+for what the footage cannot show, such as query counts or logs. Its links must be absolute; timeline.json carries its text.
 Every source fits a ${WIDTH}×${HEIGHT} frame, with bars where its shape differs.
 Seconds refer to the source media clock. Each interval plays at original speed, captioned and spoken
 for its whole length, and must last as long as its line needs: the build names each step that is too short.

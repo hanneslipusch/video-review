@@ -29,15 +29,14 @@ p,details{color:#5c6a60;font-size:14px;line-height:1.5;margin:0 0 16px}a{color:#
 .review-rate::after{content:attr(data-rate) "\xD7"}
 summary{cursor:pointer;width:max-content}kbd{font:12px ui-monospace,monospace;padding:1px 5px;border:1px solid #d5dbd5;border-radius:4px;background:#fff}
 dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:10px 0 0}dd{margin:0}
-main:has(>.notes){max-width:1520px;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);column-gap:24px;align-items:start}
-main:has(>.notes)>:not(video-player,.notes){grid-column:1/-1}
-.notes{contain:size;align-self:stretch;overflow:auto}
+@media(min-width:901px){main:has(>.notes){max-width:1520px;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);column-gap:24px;align-items:start}
+main:has(>.notes)>:not(video-player,.notes){grid-column:1/-1}main:has(>.notes)>.notes{contain:size;align-self:stretch;overflow:auto}}
 .notes article{padding:16px 18px;border:1px solid #e1e5e0;border-radius:12px;background:#fff;font-size:14px;line-height:1.5}.notes article:empty{display:none}
 .notes h2{margin:0 0 10px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5c6a60}
 .notes p,.notes ul,.notes ol,.notes pre,.notes table{color:inherit;margin:0 0 12px}.notes>article>:last-child{margin-bottom:0}.notes ul,.notes ol{padding-left:20px}
 .notes table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}.notes th,.notes td{padding:5px 8px 5px 0;border-bottom:1px solid #e9ece8;text-align:left;vertical-align:top}.notes th{font-weight:600}
 .notes code{font:12.5px/1.45 ui-monospace,monospace;overflow-wrap:anywhere}.notes pre{padding:8px 10px;border-radius:8px;background:#f3f5f2;white-space:pre-wrap}
-@media(max-width:900px){main:has(>.notes){display:block}.notes{contain:none;margin-bottom:16px}.notes article{margin-top:16px}}
+@media(max-width:900px){.notes article{margin:16px 0}}
 @media(pointer:coarse){details{display:none}}
 @media(max-width:600px){main{padding:20px 0}main>:not(video-player){margin-inline:14px}.media-skin{--media-border-radius:0}}
 </style>
@@ -278,7 +277,7 @@ function chaptersVtt(chapters) {
 function notesHtml(chapters) {
   if (!chapters.some((c) => c.notes !== undefined))
     return "";
-  const note = (c) => c.notes === undefined ? "" : `<h2>${Bun.escapeHTML(c.chapter)}</h2>${Bun.markdown.html(c.notes, { tagFilter: true, autolinks: true })}`;
+  const note = (c) => c.notes === undefined ? "" : `<h2>${Bun.escapeHTML(c.chapter)}</h2>${Bun.markdown.html(c.notes, { noHtmlBlocks: true, noHtmlSpans: true, autolinks: true })}`;
   return `<aside class="notes" aria-label="Notes">${chapters.map((c) => `<article data-at="${c.at}"${c.at ? " hidden" : ""}>${note(c)}</article>`).join("")}</aside>`;
 }
 var renderPlayer = (template, title, notes) => template.replace(/\{\{(TITLE|NOTES)\}\}/g, (_, key) => key === "TITLE" ? Bun.escapeHTML(title) : notes);
@@ -313,7 +312,7 @@ Optional source names another video or a PNG/JPG card, relative to steps.json. S
 and stay ordered; other videos use their own clock and may repeat or reorder. An image step has no start or end:
 {"source":"what-changed.png","chapter":"What changed","text":"Watch the attachment when the model switches."}
 Optional notes names a Markdown file, relative to steps.json, that the page shows beside the video while its step plays,
-for what the footage cannot show, such as query counts or logs. timeline.json carries each note's text.
+for what the footage cannot show, such as query counts or logs. Its links must be absolute; timeline.json carries its text.
 Every source fits a ${WIDTH}\xD7${HEIGHT} frame, with bars where its shape differs.
 Seconds refer to the source media clock. Each interval plays at original speed, captioned and spoken
 for its whole length, and must last as long as its line needs: the build names each step that is too short.

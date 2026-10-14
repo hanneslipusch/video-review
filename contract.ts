@@ -106,11 +106,11 @@ export function chaptersVtt(chapters: Chapter[]): string {
 }
 
 // One article per chapter, so the player shows the playing chapter's note, or nothing for a chapter without one.
-// Markdown options: https://bun.com/docs/runtime/markdown
+// Raw HTML shows as text, so a logged <Tag> stays visible. Options: https://bun.com/docs/runtime/markdown
 export function notesHtml(chapters: { at: number; chapter: string; notes?: string }[]): string {
   if (!chapters.some(c => c.notes !== undefined)) return '';
   const note = (c: { chapter: string; notes?: string }) => c.notes === undefined ? ''
-    : `<h2>${Bun.escapeHTML(c.chapter)}</h2>${Bun.markdown.html(c.notes, { tagFilter: true, autolinks: true })}`;
+    : `<h2>${Bun.escapeHTML(c.chapter)}</h2>${Bun.markdown.html(c.notes, { noHtmlBlocks: true, noHtmlSpans: true, autolinks: true })}`;
   return `<aside class="notes" aria-label="Notes">${chapters.map(c => `<article data-at="${c.at}"${c.at ? ' hidden' : ''}>${note(c)}</article>`).join('')}</aside>`;
 }
 
