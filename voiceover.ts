@@ -88,7 +88,6 @@ async function speak(provider: Provider, text: string): Promise<string> {
   return cached;
 }
 
-// Each line is one request, and a failure falls back to the next provider instead of retrying.
 function sdk(voice: Voice, model: SpeechModel, options: Pick<Parameters<typeof generateSpeech>[0], 'voice' | 'instructions' | 'outputFormat'>): Provider {
   return { ...voice, synthesize: async text => (await generateSpeech({ model, text, voice: voice.voice, maxRetries: 0, ...options })).audio.uint8Array };
 }
