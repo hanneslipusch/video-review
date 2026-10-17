@@ -17,7 +17,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "allowUnreachableCode": false,
-    "allowUnusedLabels": false
+    "allowUnusedLabels": false,
+    // The ai 7 and @videojs/html 10 declarations fail exactOptionalPropertyTypes; our code is still checked against them.
+    "skipLibCheck": true
   },
   "include": ["*.ts", "evals/reviewability/*.ts"]
 }

@@ -21,10 +21,10 @@
     "prepack": "bun run build"
   },
   "devDependencies": {
+    "@ai-sdk/elevenlabs": "^3.0.62",
+    "@ai-sdk/google": "^4.0.98",
     "@types/bun": "^1.4.3",
-    "@videojs/html": "10.0.1"
-  },
-  "patchedDependencies": {
-    "@videojs/html@10.0.1": "patches/@videojs%2Fhtml@10.0.1.patch"
+    "@videojs/html": "10.0.1",
+    "ai": "^7.0.142"
   }
 }

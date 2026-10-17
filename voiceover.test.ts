@@ -2,7 +2,8 @@ import { test, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { cachedSpeech, redact, speakAll, type Provider } from './voiceover';
+import { APICallError } from 'ai';
+import { cachedSpeech, speakAll, type Provider } from './voiceover';
 
 const wav = (tag: string) => Buffer.from(`RIFF\0\0\0\0WAVE${tag}`);
 const fake = (provider: string, synthesize: (text: string) => Promise<Buffer>): Provider => ({ provider, model: 'm', voice: 'v', synthesize });
@@ -42,20 +43,16 @@ test('a provider failing midway hands every line to the next one', async () => {
   expect(spoken.paths).toEqual(['Save.', 'Done.'].map(line => cachedSpeech(azure, line)));
 });
 
-test('audio without a WAV header or a duration is not kept, and the error names every failure', async () => {
-  const mp3 = fake('elevenlabs', async () => Buffer.from('ID3\x04mp3 frames'));
-  const broken = fake('azure', async () => wav('broken'));
-  const quota = fake('gemini', async () => { throw new Error('gemini returned HTTP 429.'); });
-  await expect(speakAll([mp3, broken, quota], ['Save.'], measure)).rejects.toThrow(
-    /elevenlabs returned audio without a WAV header\. Cannot read a duration\. gemini returned HTTP 429\./);
-  for (const provider of [mp3, broken]) expect(await Bun.file(cachedSpeech(provider, 'Save.')).exists()).toBe(false);
-});
-
-test('every provider key is redacted', () => {
+test('audio without a duration is not kept, and the error gives each reason without a key', async () => {
   const saved = { ...process.env };
   Object.assign(process.env, { GEMINI_API_KEY: 'g-secret', AZURE_SPEECH_KEY: 'a-secret', ELEVENLABS_API_KEY: 'e-secret' });
   try {
-    expect(redact('keys g-secret, a-secret, e-secret')).toBe('keys [redacted], [redacted], [redacted]');
+    const broken = fake('azure', async () => wav('broken'));
+    const quota = fake('elevenlabs', async () => { throw new APICallError({ message: 'Unauthorized', url: 'https://api.elevenlabs.io', requestBodyValues: {}, statusCode: 401,
+      responseBody: '{"code": "quota_exceeded", "keys": "g-secret a-secret e-secret"}' }); });
+    await expect(speakAll([broken, quota], ['Save.'], measure)).rejects.toThrow(
+      'azure: Cannot read a duration. elevenlabs: HTTP 401 Unauthorized {"code": "quota_exceeded", "keys": "[redacted] [redacted] [redacted]"}. Build with --captions-only');
+    expect(await Bun.file(cachedSpeech(broken, 'Save.')).exists()).toBe(false);
   } finally {
     for (const name of ['GEMINI_API_KEY', 'AZURE_SPEECH_KEY', 'ELEVENLABS_API_KEY']) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];
   }
