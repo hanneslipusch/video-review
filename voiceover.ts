@@ -13,7 +13,8 @@ export function providers(env: typeof process.env = process.env): Provider[] {
   const list: Provider[] = [];
   if (env.GEMINI_API_KEY) list.push(gemini(env.GEMINI_API_KEY));
   if (env.AZURE_SPEECH_KEY) {
-    if (/^[a-z0-9]+$/.test(env.AZURE_SPEECH_REGION ?? '')) list.push(azure(env.AZURE_SPEECH_KEY, env.AZURE_SPEECH_REGION!));
+    const region = env.AZURE_SPEECH_REGION;
+    if (region && /^[a-z0-9]+$/.test(region)) list.push(azure(env.AZURE_SPEECH_KEY, region));
     else process.stderr.write('AZURE_SPEECH_KEY needs AZURE_SPEECH_REGION set to its resource region, such as westeurope, so Azure is skipped.\n');
   }
   if (env.ELEVENLABS_API_KEY) {
@@ -38,10 +39,11 @@ export function cachedSpeech({ provider, model, voice }: Voice, text: string): s
 // Speaks and measures every line with one provider, so a review never changes voice. The provider that cached
 // most of these lines goes first, so a rebuild keeps the voice `lines` timed; on any failure the next respeaks all.
 export async function speakAll(voices: Provider[], texts: string[], measure: (path: string) => Promise<number>) {
-  const cached = await Promise.all(voices.map(async p => (await Promise.all(texts.map(t => Bun.file(cachedSpeech(p, t)).exists()))).filter(Boolean).length));
-  const order = voices.map((provider, i) => ({ provider, cached: cached[i]! })).sort((a, b) => b.cached - a.cached).map(({ provider }) => provider);
+  const order = (await Promise.all(voices.map(async provider => ({
+    provider, cached: (await Promise.all(texts.map(text => Bun.file(cachedSpeech(provider, text)).exists()))).filter(Boolean).length,
+  })))).sort((a, b) => b.cached - a.cached);
   const failures: string[] = [];
-  for (const [index, provider] of order.entries()) {
+  for (const [index, { provider }] of order.entries()) {
     try {
       const paths: string[] = [], seconds: number[] = [];
       for (const [line, text] of texts.entries()) {
@@ -54,7 +56,7 @@ export async function speakAll(voices: Provider[], texts: string[], measure: (pa
       return { voice: { provider: name, model, voice } satisfies Voice, paths, seconds };
     } catch (error) {
       failures.push(redact(error instanceof Error ? error.message : String(error)));
-      const next = order[index + 1];
+      const next = order[index + 1]?.provider;
       if (next) process.stderr.write(`${failures.at(-1)} Speaking every line with ${next.provider} instead.\n`);
     }
   }
