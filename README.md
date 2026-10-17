@@ -102,4 +102,4 @@ bun evals/reviewability/score.ts                     # bug-catch, false alarms, 
 
 The recordings are committed, so `build.ts` onward runs without recording. Judging resumes where it stopped. Private scenarios in `evals-private/reviewability/` follow the same `scenario.json` format, with clips and a hand-written `receipt` per step.
 
-`patches/` fixes the type declarations in `@videojs/html` 10.0.0 until [videojs/v10#2369](https://github.com/videojs/v10/issues/2369) ships.
+`patches/` fixes the type declarations in `@videojs/html` until [videojs/v10#2369](https://github.com/videojs/v10/issues/2369) ships.
