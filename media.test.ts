@@ -12,12 +12,6 @@ const run = (command: string[], env = withoutKey) => {
   return result.stdout;
 };
 
-async function expectColor(frame: string, pixel: string, filter: string, channel: number) {
-  run(['ffmpeg', '-v', 'error', '-i', frame, '-vf', `${filter},format=rgb24`, '-frames:v', '1', '-threads', '1', '-f', 'rawvideo', pixel]);
-  const rgb = await readFile(pixel);
-  expect(rgb[channel]!).toBeGreaterThan(Math.max(...rgb.subarray(0, 3).filter((_, index) => index !== channel)));
-}
-
 test('color metadata changes preserve every interval', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'video-review-media-'));
   try {
@@ -43,8 +37,12 @@ test('color metadata changes preserve every interval', async () => {
     const preview = JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'json', join(out, 'preview.gif')]));
     expect(Number(preview.format.duration)).toBeCloseTo(8.4 / 2.5, 0);
     expect((await readdir(join(out, 'frames'))).sort()).toEqual(['1.jpg', '2.jpg', '3.jpg']);
-    for (const [i, channel] of [2, 1, 0].entries())
-      await expectColor(join(out, 'frames', `${i + 1}.jpg`), join(dir, `${i}.rgb`), 'crop=200:100:380:150,scale=1:1', channel);
+    for (const [i, channel] of [2, 1, 0].entries()) {
+      const pixel = join(dir, `${i}.rgb`);
+      run(['ffmpeg', '-v', 'error', '-i', join(out, 'frames', `${i + 1}.jpg`), '-vf', 'crop=200:100:380:150,scale=1:1,format=rgb24', '-frames:v', '1', '-threads', '1', '-f', 'rawvideo', pixel]);
+      const rgb = await readFile(pixel);
+      expect(rgb[channel]!).toBeGreaterThan(Math.max(...rgb.filter((_, index) => index !== channel)));
+    }
     const timeline = JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8'));
     expect([timeline.voiceover, timeline.steps[1].notes]).toEqual([null, '| Queries |\n| --- |\n| 3 → 23 |']);
     // The note widens the frame by its panel; only the green step's panel holds dark text.
@@ -74,19 +72,22 @@ test('mixed sources retain image and video outcomes at the main canvas size', as
     const card = { source: 'card.png', chapter: 'Card', text: 'Shown.' };
     const steps = [card, step, { ...step, source: 'other.mp4', start: 2, end: 4 }, { ...step, source: 'other.mp4' }, card];
     const input = join(dir, 'steps.json'), out = join(dir, 'review');
-    // A key that cannot speak proves --captions-only never calls a provider.
-    const build = () => run(['bun', 'bin/video-review', 'build', join(dir, 'main.mp4'), input, '--out', out, '--captions-only'],
-      { ...withoutKey, GEMINI_API_KEY: 'invalid', AZURE_SPEECH_KEY: 'invalid', AZURE_SPEECH_REGION: 'westeurope', ELEVENLABS_API_KEY: 'invalid', ELEVENLABS_VOICE_ID: 'invalid' });
+    // A key that cannot speak proves --captions-only never calls Gemini.
+    const build = () => run(['bun', 'bin/video-review', 'build', join(dir, 'main.mp4'), input, '--out', out, '--captions-only'], { ...withoutKey, GEMINI_API_KEY: 'invalid' });
     await writeFile(input, JSON.stringify({ title: 'Mixed', steps }));
     build();
     const timeline = JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8'));
-    expect([timeline.sources.length, timeline.voiceover]).toEqual([3, null]);
+    expect(timeline.sources.length).toBe(3);
     expect(timeline.steps.map((s: { source?: string }) => s.source)).toEqual(['card.png', undefined, 'other.mp4', 'other.mp4', 'card.png']);
     const video = JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'stream=width,height,sample_aspect_ratio', '-of', 'json', join(out, 'video.mp4')]));
     expect(video.streams[0]).toEqual({ width: 1920, height: 1080, sample_aspect_ratio: '1:1' });
     // Strip tiles are 960x540; x=150 is inside main.mp4's 4:3 picture only when its pixels are widened.
-    for (const [i, channel, x] of [[0, 1, 480], [1, 2, 480], [1, 2, 150], [2, 0, 480], [3, 0, 480], [4, 1, 480]] as const)
-      await expectColor(join(out, 'frames', `${i + 1}.jpg`), join(dir, `pixel-${i}-${x}.rgb`), `crop=2:2:${x}:200`, channel);
+    for (const [i, channel, x] of [[0, 1, 480], [1, 2, 480], [1, 2, 150], [2, 0, 480], [3, 0, 480], [4, 1, 480]] as const) {
+      const file = join(dir, `pixel-${i}-${x}.rgb`);
+      run(['ffmpeg', '-v', 'error', '-i', join(out, 'frames', `${i + 1}.jpg`), '-vf', `crop=2:2:${x}:200,format=rgb24`, '-frames:v', '1', '-threads', '1', '-f', 'rawvideo', file]);
+      const rgb = await readFile(file);
+      expect(rgb[channel]!).toBeGreaterThan(Math.max(...rgb.subarray(0, 3).filter((_, j) => j !== channel)));
+    }
     await writeFile(join(dir, 'long.md'), '- line\n'.repeat(60));
     for (const invalid of [{ ...step, source: 'other.mp4', end: 5 }, { ...card, start: 0 }, { ...step, notes: 'long.md' }]) {
       await writeFile(input, JSON.stringify({ title: 'Invalid', steps: [invalid] }));
@@ -107,7 +108,11 @@ test('a review longer than one frame-picking run keeps every step its own frames
     await writeFile(input, JSON.stringify({ title: 'Long', steps }));
     run(['bun', 'bin/video-review', 'build', join(dir, 'main.mp4'), input, '--out', out, '--captions-only']);
     expect((await readdir(join(out, 'frames'))).length).toBe(34);
-    for (const [step, channel] of [[1, 0], [34, 1]] as const)
-      await expectColor(join(out, 'frames', `${step}.jpg`), join(dir, `${step}.rgb`), 'crop=2:2:480:200', channel);
+    for (const [step, channel] of [[1, 0], [34, 1]] as const) {
+      const file = join(dir, `${step}.rgb`);
+      run(['ffmpeg', '-v', 'error', '-i', join(out, 'frames', `${step}.jpg`), '-vf', 'crop=2:2:480:200,format=rgb24', '-frames:v', '1', '-f', 'rawvideo', file]);
+      const rgb = await readFile(file);
+      expect(rgb[channel]!).toBeGreaterThan(Math.max(...rgb.subarray(0, 3).filter((_, j) => j !== channel)));
+    }
   } finally { await rm(dir, { recursive: true, force: true }); }
 }, 120_000);

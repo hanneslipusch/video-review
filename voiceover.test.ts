@@ -27,9 +27,9 @@ test('each provider, model, voice and line caches its own speech', () => {
 });
 
 test('the provider that cached most lines speaks the review, requesting only the changed line', async () => {
-  const gemini: string[] = [], azure: string[] = [], provider = recorder('azure', azure);
+  const gemini: string[] = [], azure: string[] = [];
   await speakAll([recorder('azure', [])], ['Save.'], measure);
-  const spoken = await speakAll([recorder('gemini', gemini), provider], ['Save.', 'Done.'], measure);
+  const spoken = await speakAll([recorder('gemini', gemini), recorder('azure', azure)], ['Save.', 'Done.'], measure);
   expect([spoken.voice.provider, gemini, azure]).toEqual(['azure', [], ['Done.']]);
 });
 

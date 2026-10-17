@@ -26072,27 +26072,31 @@ var google = createGoogle();
 
 // voiceover.ts
 var style = "Speak like a colleague walking someone through a short demo: warm, clear and natural.";
-var fetchOnce = Object.assign((url, init) => fetch(url, { ...init, redirect: "error", signal: AbortSignal.timeout(120000) }), { preconnect: fetch.preconnect });
+function fetchOnce(url, init) {
+  return fetch(url, { ...init, redirect: "error", signal: AbortSignal.timeout(120000) });
+}
+fetchOnce.preconnect = fetch.preconnect;
 function providers() {
   const env = process.env, list = [];
   if (env.GEMINI_API_KEY) {
-    const model = "gemini-3.8-flash-tts";
-    list.push(sdk({ provider: "gemini", model, voice: "Kore" }, createGoogle({ apiKey: env.GEMINI_API_KEY, fetch: fetchOnce }).speech(model), { instructions: style, outputFormat: "wav" }));
+    const voice = { provider: "gemini", model: "gemini-3.8-flash-tts", voice: "Kore" };
+    const model = createGoogle({ apiKey: env.GEMINI_API_KEY, fetch: fetchOnce }).speech(voice.model);
+    list.push(sdk(voice, model, { instructions: style, outputFormat: "wav" }));
   }
   if (env.AZURE_SPEECH_KEY) {
-    const region = env.AZURE_SPEECH_REGION?.toLowerCase();
-    if (region && /^[a-z0-9]+$/.test(region))
+    const region = env.AZURE_SPEECH_REGION ?? "";
+    if (/^[a-z0-9]+$/i.test(region))
       list.push(azure(env.AZURE_SPEECH_KEY, region));
     else
       process.stderr.write(`AZURE_SPEECH_KEY needs AZURE_SPEECH_REGION set to its resource region, such as westeurope, so Azure is skipped.
 `);
   }
   if (env.ELEVENLABS_API_KEY) {
-    const model = "eleven_v4";
-    const voice = env.ELEVENLABS_VOICE_ID;
-    if (voice)
-      list.push(sdk({ provider: "elevenlabs", model, voice }, createElevenLabs({ apiKey: env.ELEVENLABS_API_KEY, fetch: fetchOnce }).speech(model), { voice: encodeURIComponent(voice), outputFormat: "wav_24000" }));
-    else
+    if (env.ELEVENLABS_VOICE_ID) {
+      const voice = { provider: "elevenlabs", model: "eleven_v4", voice: encodeURIComponent(env.ELEVENLABS_VOICE_ID) };
+      const model = createElevenLabs({ apiKey: env.ELEVENLABS_API_KEY, fetch: fetchOnce }).speech(voice.model);
+      list.push(sdk(voice, model, { outputFormat: "wav_24000" }));
+    } else
       process.stderr.write(`ELEVENLABS_API_KEY needs ELEVENLABS_VOICE_ID, a voice your account can use, so ElevenLabs is skipped.
 `);
   }
@@ -26129,10 +26133,10 @@ async function speakAll(voices, texts, measure) {
         }));
         paths.push(path);
       }
-      const { provider: name, model, voice } = provider;
-      return { voice: { provider: name, model, voice }, paths, seconds };
+      const { synthesize: _, ...voice } = provider;
+      return { voice, paths, seconds };
     } catch (error) {
-      failures.push(`${provider.provider}: ${redact(reason(error)).replace(/\s+/g, " ").trim().slice(0, 500).replace(/\.$/, "")}`);
+      failures.push(`${provider.provider}: ${reason(error)}`);
       const next = order[index + 1]?.provider;
       if (next)
         process.stderr.write(`${failures.at(-1)}. Speaking every line with ${next.provider} instead.
@@ -26151,30 +26155,32 @@ async function speak(provider, text) {
   return cached;
 }
 function reason(error) {
-  if (!APICallError.isInstance(error))
-    return error instanceof Error ? error.message : String(error);
-  let body = error.responseBody ?? "";
-  try {
-    body = JSON.stringify(JSON.parse(body));
-  } catch {}
-  return [error.statusCode && `HTTP ${error.statusCode}`, error.message, body].filter(Boolean).join(" ");
+  let message = error instanceof Error ? error.message : String(error);
+  if (APICallError.isInstance(error)) {
+    let body = error.responseBody ?? "";
+    try {
+      body = JSON.stringify(JSON.parse(body));
+    } catch {}
+    message = [error.statusCode && `HTTP ${error.statusCode}`, message, body].filter(Boolean).join(" ");
+  }
+  return redact(message).replace(/\s+/g, " ").trim().slice(0, 500).replace(/\.$/, "");
 }
 function sdk(voice, model, options) {
   return { ...voice, synthesize: async (text) => (await generateSpeech({ model, text, voice: voice.voice, maxRetries: 0, ...options })).audio.uint8Array };
 }
 function azure(key, region) {
   const voice = "en-US-AvaMultilingualNeural";
-  return { provider: "azure", model: "neural", voice, async synthesize(text) {
-    const response = await fetchOnce(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, { method: "POST", headers: {
-      "Ocp-Apim-Subscription-Key": key,
-      "Content-Type": "application/ssml+xml",
-      "X-Microsoft-OutputFormat": "riff-24khz-16bit-mono-pcm",
-      "User-Agent": "video-review"
-    }, body: `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><voice name="${voice}">${Bun.escapeHTML(text)}</voice></speak>` });
+  const synthesize = async (text) => {
+    const response = await fetchOnce(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+      method: "POST",
+      headers: { "Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml", "X-Microsoft-OutputFormat": "riff-24khz-16bit-mono-pcm", "User-Agent": "video-review" },
+      body: `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><voice name="${voice}">${Bun.escapeHTML(text)}</voice></speak>`
+    });
     if (!response.ok)
       throw new APICallError({ message: response.statusText, url: response.url, requestBodyValues: {}, statusCode: response.status, responseBody: await response.text() });
-    return new Uint8Array(await response.arrayBuffer());
-  } };
+    return response.bytes();
+  };
+  return { provider: "azure", model: "neural", voice, synthesize };
 }
 
 // cli.ts
@@ -26340,9 +26346,8 @@ An image step shows for as long as its line needs.
 --help             Show the input contract and example before recording.
 
 The build speaks each line into video.mp4 with one provider, in this order of the ones set: GEMINI_API_KEY,
-AZURE_SPEECH_KEY with AZURE_SPEECH_REGION, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID. One that already spoke most
-of the lines goes first. When one fails, the next speaks every line, so a review keeps one voice. Without any, the
-review is captions-only.
+AZURE_SPEECH_KEY with AZURE_SPEECH_REGION, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID. If one fails, the next speaks
+every line. Without any, the review is captions-only.
 Speech is cached in $XDG_CACHE_HOME/video-review/speech (default ~/.cache), so a rebuild requests only changed lines.
 Outputs: index.html, video.mp4, preview.gif (captioned, at 2.5\xD7, for pages that cannot play video), poster.jpg,
 captions.vtt, chapters.vtt, thumbnails.vtt, thumbnails.jpg, timeline.json, and frames/*.jpg: per step, its first,

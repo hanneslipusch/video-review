@@ -51,9 +51,8 @@ An image step shows for as long as its line needs.
 --help             Show the input contract and example before recording.
 
 The build speaks each line into video.mp4 with one provider, in this order of the ones set: GEMINI_API_KEY,
-AZURE_SPEECH_KEY with AZURE_SPEECH_REGION, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID. One that already spoke most
-of the lines goes first. When one fails, the next speaks every line, so a review keeps one voice. Without any, the
-review is captions-only.
+AZURE_SPEECH_KEY with AZURE_SPEECH_REGION, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID. If one fails, the next speaks
+every line. Without any, the review is captions-only.
 Speech is cached in $XDG_CACHE_HOME/video-review/speech (default ~/.cache), so a rebuild requests only changed lines.
 Outputs: index.html, video.mp4, preview.gif (captioned, at 2.5×, for pages that cannot play video), poster.jpg,
 captions.vtt, chapters.vtt, thumbnails.vtt, thumbnails.jpg, timeline.json, and frames/*.jpg: per step, its first,
@@ -62,6 +61,7 @@ Source audio is removed. Inputs are never changed.
 Success prints one JSON object listing the frames. Read each; if one does not show what its caption says, fix steps.json and build again.
 Exit 0: built, 1: runtime failure, 2: usage.`;
 
+// build and lines decide alike, so lines times each step as the build will play it.
 function voiceProviders(captionsOnly: boolean | undefined): Provider[] {
   if (captionsOnly) return [];
   const list = providers();
@@ -105,6 +105,7 @@ async function build(video: string, input: string, destination: string, voices: 
   const target = resolve(destination);
   const main = await probe(source, true);
   const review = parseReview(JSON.parse(await readFile(input, 'utf8')), main.seconds);
+  // Each source is one ffmpeg input, split once per step that shows it.
   const media = new Map<string, { image: boolean; seconds: number; sha256: string; steps: number[] }>();
   for (const [index, step] of review.steps.entries()) {
     const path = step.source === undefined ? source : await realpath(resolve(dirname(resolve(input)), step.source));
@@ -185,6 +186,7 @@ async function build(video: string, input: string, destination: string, voices: 
     // libass ignores VTT cue settings and measures margins against a 384-unit-wide script: https://ffmpeg.org/ffmpeg-filters.html#subtitles-1
     const captioned = width > WIDTH ? `subtitles=captions.vtt:force_style='MarginR=${Math.round(384 * NOTE_WIDTH / width)}'` : 'subtitles=captions.vtt';
     await run(['ffmpeg', '-v', 'error', '-i', 'video.mp4', '-vf', `${captioned},setpts=PTS/${PREVIEW_RATE},fps=10,scale=-2:'min(540,ih)':flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, 'preview.gif'], output);
+    // Three frames per step, as a viewer sees them: the start, the middle and the last.
     // The start is 0.1 s in, since libass times captions to 1/100 s and can show the previous one first.
     // ffmpeg rejects an expression of more than 100 terms (stack_index in libavutil/eval.c), so 33 steps per run.
     for (let first = 0; first < timeline.length; first += 33) {

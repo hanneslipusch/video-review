@@ -12,27 +12,33 @@ export type Voice = { provider: string; model: string; voice: string };
 export type Provider = Voice & { synthesize(text: string): Promise<Uint8Array> };
 
 // A redirect would forward the key header to another host.
-const fetchOnce: typeof fetch = Object.assign((url: string | URL | Request, init?: RequestInit) =>
-  fetch(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(120_000) }), { preconnect: fetch.preconnect });
+function fetchOnce(url: string | URL | Request, init?: RequestInit) {
+  return fetch(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(120_000) });
+}
+// The AI SDK types its fetch option as Bun's fetch, which has preconnect.
+fetchOnce.preconnect = fetch.preconnect;
 
 export function providers(): Provider[] {
   const env = process.env, list: Provider[] = [];
   if (env.GEMINI_API_KEY) {
     // https://ai-sdk.dev/providers/ai-sdk-providers/google-generative-ai#speech-models
-    const model = 'gemini-3.8-flash-tts';
-    list.push(sdk({ provider: 'gemini', model, voice: 'Kore' }, createGoogleGenerativeAI({ apiKey: env.GEMINI_API_KEY, fetch: fetchOnce }).speech(model), { instructions: style, outputFormat: 'wav' }));
+    const voice = { provider: 'gemini', model: 'gemini-3.8-flash-tts', voice: 'Kore' };
+    const model = createGoogleGenerativeAI({ apiKey: env.GEMINI_API_KEY, fetch: fetchOnce }).speech(voice.model);
+    list.push(sdk(voice, model, { instructions: style, outputFormat: 'wav' }));
   }
   if (env.AZURE_SPEECH_KEY) {
-    const region = env.AZURE_SPEECH_REGION?.toLowerCase();
-    if (region && /^[a-z0-9]+$/.test(region)) list.push(azure(env.AZURE_SPEECH_KEY, region));
+    // The region becomes the host name that receives the key.
+    const region = env.AZURE_SPEECH_REGION ?? '';
+    if (/^[a-z0-9]+$/i.test(region)) list.push(azure(env.AZURE_SPEECH_KEY, region));
     else process.stderr.write('AZURE_SPEECH_KEY needs AZURE_SPEECH_REGION set to its resource region, such as westeurope, so Azure is skipped.\n');
   }
   if (env.ELEVENLABS_API_KEY) {
-    // https://ai-sdk.dev/providers/ai-sdk-providers/elevenlabs#speech-models
-    const model = 'eleven_v4';
-    const voice = env.ELEVENLABS_VOICE_ID;
-    if (voice) list.push(sdk({ provider: 'elevenlabs', model, voice }, createElevenLabs({ apiKey: env.ELEVENLABS_API_KEY, fetch: fetchOnce }).speech(model), { voice: encodeURIComponent(voice), outputFormat: 'wav_24000' }));
-    else process.stderr.write('ELEVENLABS_API_KEY needs ELEVENLABS_VOICE_ID, a voice your account can use, so ElevenLabs is skipped.\n');
+    if (env.ELEVENLABS_VOICE_ID) {
+      // https://ai-sdk.dev/providers/ai-sdk-providers/elevenlabs#speech-models; the SDK puts the voice ID in the URL path unencoded.
+      const voice = { provider: 'elevenlabs', model: 'eleven_v4', voice: encodeURIComponent(env.ELEVENLABS_VOICE_ID) };
+      const model = createElevenLabs({ apiKey: env.ELEVENLABS_API_KEY, fetch: fetchOnce }).speech(voice.model);
+      list.push(sdk(voice, model, { outputFormat: 'wav_24000' }));
+    } else process.stderr.write('ELEVENLABS_API_KEY needs ELEVENLABS_VOICE_ID, a voice your account can use, so ElevenLabs is skipped.\n');
   }
   return list;
 }
@@ -68,10 +74,10 @@ export async function speakAll(voices: Provider[], texts: string[], measure: (pa
         seconds.push(await measure(path).catch(async (error: unknown) => { await rm(path, { force: true }); throw error; }));
         paths.push(path);
       }
-      const { provider: name, model, voice } = provider;
-      return { voice: { provider: name, model, voice } satisfies Voice, paths, seconds };
+      const { synthesize: _, ...voice } = provider;
+      return { voice, paths, seconds };
     } catch (error) {
-      failures.push(`${provider.provider}: ${redact(reason(error)).replace(/\s+/g, ' ').trim().slice(0, 500).replace(/\.$/, '')}`);
+      failures.push(`${provider.provider}: ${reason(error)}`);
       const next = order[index + 1]?.provider;
       if (next) process.stderr.write(`${failures.at(-1)}. Speaking every line with ${next.provider} instead.\n`);
     }
@@ -91,13 +97,16 @@ async function speak(provider: Provider, text: string): Promise<string> {
 // The AI SDK's message can be only the status text, such as "Unauthorized" for ElevenLabs' quota_exceeded.
 // Decoding the JSON body first lets redact() find a key the body escapes.
 function reason(error: unknown): string {
-  if (!APICallError.isInstance(error)) return error instanceof Error ? error.message : String(error);
-  let body = error.responseBody ?? '';
-  try { body = JSON.stringify(JSON.parse(body)); } catch { /* not JSON */ }
-  return [error.statusCode && `HTTP ${error.statusCode}`, error.message, body].filter(Boolean).join(' ');
+  let message = error instanceof Error ? error.message : String(error);
+  if (APICallError.isInstance(error)) {
+    let body = error.responseBody ?? '';
+    try { body = JSON.stringify(JSON.parse(body)); } catch { /* not JSON */ }
+    message = [error.statusCode && `HTTP ${error.statusCode}`, message, body].filter(Boolean).join(' ');
+  }
+  return redact(message).replace(/\s+/g, ' ').trim().slice(0, 500).replace(/\.$/, '');
 }
 
-function sdk(voice: Voice, model: SpeechModel, options: Pick<Parameters<typeof generateSpeech>[0], 'voice' | 'instructions' | 'outputFormat'>): Provider {
+function sdk(voice: Voice, model: SpeechModel, options: Pick<Parameters<typeof generateSpeech>[0], 'instructions' | 'outputFormat'>): Provider {
   return { ...voice, synthesize: async text => (await generateSpeech({ model, text, voice: voice.voice, maxRetries: 0, ...options })).audio.uint8Array };
 }
 
@@ -106,12 +115,15 @@ function sdk(voice: Voice, model: SpeechModel, options: Pick<Parameters<typeof g
 function azure(key: string, region: string): Provider {
   // A multilingual voice speaks each line in its own language: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support?tabs=tts
   const voice = 'en-US-AvaMultilingualNeural';
-  return { provider: 'azure', model: 'neural', voice, async synthesize(text) {
-    // REST request and output formats: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech
-    const response = await fetchOnce(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, { method: 'POST', headers: {
-      'Ocp-Apim-Subscription-Key': key, 'Content-Type': 'application/ssml+xml', 'X-Microsoft-OutputFormat': 'riff-24khz-16bit-mono-pcm', 'User-Agent': 'video-review',
-    }, body: `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><voice name="${voice}">${Bun.escapeHTML(text)}</voice></speak>` });
+  // REST request and output formats: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech
+  const synthesize = async (text: string) => {
+    const response = await fetchOnce(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+      method: 'POST',
+      headers: { 'Ocp-Apim-Subscription-Key': key, 'Content-Type': 'application/ssml+xml', 'X-Microsoft-OutputFormat': 'riff-24khz-16bit-mono-pcm', 'User-Agent': 'video-review' },
+      body: `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><voice name="${voice}">${Bun.escapeHTML(text)}</voice></speak>`,
+    });
     if (!response.ok) throw new APICallError({ message: response.statusText, url: response.url, requestBodyValues: {}, statusCode: response.status, responseBody: await response.text() });
-    return new Uint8Array(await response.arrayBuffer());
-  } };
+    return response.bytes();
+  };
+  return { provider: 'azure', model: 'neural', voice, synthesize };
 }
