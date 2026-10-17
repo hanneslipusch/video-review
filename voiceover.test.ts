@@ -1,7 +1,7 @@
 import { test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { APICallError } from 'ai';
 import { cachedSpeech, speakAll, type Provider } from './voiceover';
 
@@ -28,8 +28,7 @@ test('each provider, model, voice and line caches its own speech', () => {
 
 test('the provider that cached most lines speaks the review, requesting only the changed line', async () => {
   const gemini: string[] = [], azure: string[] = [], provider = recorder('azure', azure);
-  await mkdir(dirname(cachedSpeech(provider, 'Save.')), { recursive: true });
-  await writeFile(cachedSpeech(provider, 'Save.'), wav('Save.'));
+  await speakAll([recorder('azure', [])], ['Save.'], measure);
   const spoken = await speakAll([recorder('gemini', gemini), provider], ['Save.', 'Done.'], measure);
   expect([spoken.voice.provider, gemini, azure]).toEqual(['azure', [], ['Done.']]);
 });
