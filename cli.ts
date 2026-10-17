@@ -4,7 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { assets, template } from './assets.generated';
-import { speak, tts } from './voiceover';
+import { providers, redact, speakAll, type Provider } from './voiceover';
 import { parseArgs } from 'node:util';
 import { CHAPTER_LIMIT, FPS, isImage, lineSeconds, notePage, parseLines, parseReview, pace, vtt, chaptersVtt, renderPlayer } from './contract';
 
@@ -50,7 +50,9 @@ An image step shows for as long as its line needs.
 --captions-only    Build without speech, when the user asks for a silent review.
 --help             Show the input contract and example before recording.
 
-With GEMINI_API_KEY set, the build speaks each line with Gemini TTS into video.mp4; without it, the review is captions-only.
+The build speaks each line into video.mp4 with one provider, in this order of the ones set: GEMINI_API_KEY,
+AZURE_SPEECH_KEY with AZURE_SPEECH_REGION, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID; one that already spoke most
+lines goes first. If one fails, the next speaks every line. Without any, the review is captions-only.
 Speech is cached in $XDG_CACHE_HOME/video-review/speech (default ~/.cache), so a rebuild requests only changed lines.
 Outputs: index.html, video.mp4, preview.gif (captioned, at 2.5×, for pages that cannot play video), poster.jpg,
 captions.vtt, chapters.vtt, thumbnails.vtt, thumbnails.jpg, timeline.json, and frames/*.jpg: per step, its first,
@@ -60,11 +62,11 @@ Success prints one JSON object listing the frames. Read each; if one does not sh
 Exit 0: built, 1: runtime failure, 2: usage.`;
 
 // build and lines decide alike, so lines times each step as the build will play it.
-function speechKey(captionsOnly: boolean | undefined) {
-  if (captionsOnly) return undefined;
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) process.stderr.write('No GEMINI_API_KEY, so captions only. Deliver this review, and tell the user to set the key from https://aistudio.google.com/apikey and build again for a voiceover.\n');
-  return key || undefined;
+function voiceProviders(captionsOnly: boolean | undefined): Provider[] {
+  if (captionsOnly) return [];
+  const list = providers();
+  if (!list.length) process.stderr.write('No speech key, so captions only. Deliver this review, and tell the user to set GEMINI_API_KEY from https://aistudio.google.com/apikey, or another provider from video-review build --help, and build again for a voiceover.\n');
+  return list;
 }
 
 function requireFFmpeg() {
@@ -89,13 +91,15 @@ async function probe(path: string, video = false): Promise<{ seconds: number; wi
   return { seconds, width, height };
 }
 
+const speechSeconds = async (path: string) => (await probe(path)).seconds;
+
 async function sha256(path: string): Promise<string> {
   const hasher = createHash('sha256');
   for await (const chunk of createReadStream(path)) hasher.update(chunk);
   return hasher.digest('hex');
 }
 
-async function build(video: string, input: string, destination: string, key: string | undefined) {
+async function build(video: string, input: string, destination: string, voices: Provider[]) {
   requireFFmpeg();
   const source = await realpath(video);
   const target = resolve(destination);
@@ -140,14 +144,10 @@ async function build(video: string, input: string, destination: string, key: str
     await mkdir(join(output, 'frames'));
     const panels = await drawNotes(review.steps, output);
     const width = panels.some(Boolean) ? WIDTH + NOTE_WIDTH : WIDTH;
-    const speech: string[] = [], lengths: number[] = [];
-    for (const [index, step] of review.steps.entries()) {
-      if (!key) { lengths.push(0); continue; }
-      process.stderr.write(`Voiceover ${index + 1}/${review.steps.length}\n`);
-      speech.push(await speak(step.text, key));
-      lengths.push((await probe(speech[index]!)).seconds);
-    }
-    const voiceover = key !== undefined;
+    const spoken = voices.length ? await speakAll(voices, review.steps.map(step => step.text), speechSeconds) : undefined;
+    const speech = spoken?.paths ?? [];
+    const lengths = spoken?.seconds ?? review.steps.map(() => 0);
+    const voiceover = spoken !== undefined;
     const timeline = pace(review.steps, lengths);
     const total = timeline.at(-1)!.until;
     const args = ['ffmpeg', '-v', 'error'];
@@ -204,7 +204,7 @@ async function build(video: string, input: string, destination: string, key: str
     if (!(await stat(join(output, 'thumbnails.jpg'))).size) throw new Error('Thumbnail sprite is empty.');
     await writeFile(join(output, 'thumbnails.vtt'), vtt(Array.from({ length: count }, (_, i) => ({
       start: i * 2, end: Math.min(total, (i + 1) * 2), text: `thumbnails.jpg#xywh=${(i % columns) * tileWidth},${Math.floor(i / columns) * tileHeight},${tileWidth},${tileHeight}` }))));
-    const manifest = { title: review.title, sources: [...media].map(([path, { sha256 }]) => ({ file: basename(path), sha256 })), voiceover: voiceover ? tts : null,
+    const manifest = { title: review.title, sources: [...media].map(([path, { sha256 }]) => ({ file: basename(path), sha256 })), voiceover: spoken?.voice ?? null,
       steps: timeline.map(({ start, end, ...step }) => step.source !== undefined && isImage(step.source) ? step : { start, end, ...step }) };
     await writeFile(join(output, 'timeline.json'), JSON.stringify(manifest, null, 2) + '\n');
     await mkdir(join(output, 'vendor'));
@@ -242,11 +242,11 @@ async function drawNotes(steps: { chapter: string; notes?: string }[], output: s
   return panels;
 }
 
-async function lines(input: string, key: string | undefined) {
-  if (key) requireFFmpeg();
-  const seconds: number[] = [];
-  for (const text of parseLines(JSON.parse(await readFile(input, 'utf8'))))
-    seconds.push(lineSeconds(text, key ? (await probe(await speak(text, key))).seconds : 0));
+async function lines(input: string, voices: Provider[]) {
+  if (voices.length) requireFFmpeg();
+  const texts = parseLines(JSON.parse(await readFile(input, 'utf8')));
+  const spoken = voices.length ? await speakAll(voices, texts, speechSeconds) : undefined;
+  const seconds = texts.map((text, index) => lineSeconds(text, spoken?.seconds[index] ?? 0));
   // Round up so a recording that waits this long still covers the line.
   console.log(JSON.stringify({ seconds: seconds.map((s) => Math.ceil(s * 10) / 10) }));
 }
@@ -279,9 +279,9 @@ try {
   if (values.help || !command) {
     console.log(command === 'build' ? buildHelp : help);
   } else if (command === 'build' && video && input && values.out && !extra.length) {
-    await build(video, input, values.out, speechKey(values['captions-only']));
+    await build(video, input, values.out, voiceProviders(values['captions-only']));
   } else if (command === 'lines' && video && !input && !values.out) {
-    await lines(video, speechKey(values['captions-only']));
+    await lines(video, voiceProviders(values['captions-only']));
   } else if (command === 'frames' && video && !input && values.out && !values['captions-only']) {
     await frames(video, values.out);
   } else {
@@ -290,9 +290,6 @@ try {
   }
 } catch (error) {
   // Provider exceptions can embed request headers; surface only a redacted message.
-  let message = error instanceof Error ? error.message : 'Build failed.';
-  const key = process.env.GEMINI_API_KEY;
-  if (key) message = message.replaceAll(key, '[redacted]');
-  console.error(`video-review: ${message}`);
+  console.error(`video-review: ${redact(error instanceof Error ? error.message : 'Build failed.')}`);
   process.exitCode = error instanceof Error && 'code' in error && String(error.code).startsWith('ERR_PARSE_ARGS') ? 2 : 1;
 }
