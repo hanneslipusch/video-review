@@ -48,9 +48,9 @@ test('audio without a duration is not kept, and the error gives each reason with
   try {
     const broken = fake('azure', async () => wav('broken'));
     const quota = fake('elevenlabs', async () => { throw new APICallError({ message: 'Unauthorized', url: 'https://api.elevenlabs.io', requestBodyValues: {}, statusCode: 401,
-      responseBody: '{"code": "quota_exceeded", "keys": "g-secret a-secret e-secret"}' }); });
+      responseBody: '{"code": "quota_exceeded", "keys": "g-secret a\\u002dsecret e-secret"}' }); });
     await expect(speakAll([broken, quota], ['Save.'], measure)).rejects.toThrow(
-      'azure: Cannot read a duration. elevenlabs: HTTP 401 Unauthorized {"code": "quota_exceeded", "keys": "[redacted] [redacted] [redacted]"}. Build with --captions-only');
+      'azure: Cannot read a duration. elevenlabs: HTTP 401 Unauthorized {"code":"quota_exceeded","keys":"[redacted] [redacted] [redacted]"}. Build with --captions-only');
     expect(await Bun.file(cachedSpeech(broken, 'Save.')).exists()).toBe(false);
   } finally {
     for (const name of ['GEMINI_API_KEY', 'AZURE_SPEECH_KEY', 'ELEVENLABS_API_KEY']) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];

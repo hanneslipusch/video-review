@@ -1,7 +1,7 @@
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { APICallError, generateSpeech, type SpeechModel } from 'ai';
 import { createElevenLabs } from '@ai-sdk/elevenlabs';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
@@ -15,15 +15,15 @@ export type Provider = Voice & { synthesize(text: string): Promise<Uint8Array> }
 const fetchOnce: typeof fetch = Object.assign((url: string | URL | Request, init?: RequestInit) =>
   fetch(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(120_000) }), { preconnect: fetch.preconnect });
 
-export function providers(env: typeof process.env = process.env): Provider[] {
-  const list: Provider[] = [];
+export function providers(): Provider[] {
+  const env = process.env, list: Provider[] = [];
   if (env.GEMINI_API_KEY) {
     // https://ai-sdk.dev/providers/ai-sdk-providers/google-generative-ai#speech-models
     const model = 'gemini-3.8-flash-tts';
     list.push(sdk({ provider: 'gemini', model, voice: 'Kore' }, createGoogleGenerativeAI({ apiKey: env.GEMINI_API_KEY, fetch: fetchOnce }).speech(model), { instructions: style, outputFormat: 'wav' }));
   }
   if (env.AZURE_SPEECH_KEY) {
-    const region = env.AZURE_SPEECH_REGION;
+    const region = env.AZURE_SPEECH_REGION?.toLowerCase();
     if (region && /^[a-z0-9]+$/.test(region)) list.push(azure(env.AZURE_SPEECH_KEY, region));
     else process.stderr.write('AZURE_SPEECH_KEY needs AZURE_SPEECH_REGION set to its resource region, such as westeurope, so Azure is skipped.\n');
   }
@@ -44,9 +44,11 @@ export function redact(message: string): string {
 }
 
 // Cache location: https://specifications.freedesktop.org/basedir-spec/latest/
+const speechDir = () => join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'video-review', 'speech');
+
 export function cachedSpeech({ provider, model, voice }: Voice, text: string): string {
   const hash = createHash('sha256').update(JSON.stringify([provider, model, voice, style, text])).digest('hex');
-  return join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'video-review', 'speech', `${hash}.wav`);
+  return join(speechDir(), `${hash}.wav`);
 }
 
 // Speaks and measures every line with one provider, so a review never changes voice. The provider that cached
@@ -55,6 +57,7 @@ export async function speakAll(voices: Provider[], texts: string[], measure: (pa
   const order = (await Promise.all(voices.map(async provider => ({
     provider, cached: (await Promise.all(texts.map(text => Bun.file(cachedSpeech(provider, text)).exists()))).filter(Boolean).length,
   })))).sort((a, b) => b.cached - a.cached);
+  await mkdir(speechDir(), { recursive: true });
   const failures: string[] = [];
   for (const [index, { provider }] of order.entries()) {
     try {
@@ -68,9 +71,7 @@ export async function speakAll(voices: Provider[], texts: string[], measure: (pa
       const { provider: name, model, voice } = provider;
       return { voice: { provider: name, model, voice } satisfies Voice, paths, seconds };
     } catch (error) {
-      // The AI SDK's message can be only the status text, such as "Unauthorized" for ElevenLabs' quota_exceeded.
-      const reason = APICallError.isInstance(error) ? `HTTP ${error.statusCode} ${error.message} ${error.responseBody ?? ''}` : error instanceof Error ? error.message : String(error);
-      failures.push(`${provider.provider}: ${redact(reason).replace(/\s+/g, ' ').trim().slice(0, 500).replace(/\.$/, '')}`);
+      failures.push(`${provider.provider}: ${redact(reason(error)).replace(/\s+/g, ' ').trim().slice(0, 500).replace(/\.$/, '')}`);
       const next = order[index + 1]?.provider;
       if (next) process.stderr.write(`${failures.at(-1)}. Speaking every line with ${next.provider} instead.\n`);
     }
@@ -82,10 +83,18 @@ async function speak(provider: Provider, text: string): Promise<string> {
   const cached = cachedSpeech(provider, text);
   if (await Bun.file(cached).exists()) return cached;
   const audio = await provider.synthesize(text);
-  await mkdir(dirname(cached), { recursive: true });
   await writeFile(`${cached}.${process.pid}`, audio);
   await rename(`${cached}.${process.pid}`, cached);
   return cached;
+}
+
+// The AI SDK's message can be only the status text, such as "Unauthorized" for ElevenLabs' quota_exceeded.
+// Decoding the JSON body first lets redact() find a key the body escapes.
+function reason(error: unknown): string {
+  if (!APICallError.isInstance(error)) return error instanceof Error ? error.message : String(error);
+  let body = error.responseBody ?? '';
+  try { body = JSON.stringify(JSON.parse(body)); } catch { /* not JSON */ }
+  return [error.statusCode && `HTTP ${error.statusCode}`, error.message, body].filter(Boolean).join(' ');
 }
 
 function sdk(voice: Voice, model: SpeechModel, options: Pick<Parameters<typeof generateSpeech>[0], 'voice' | 'instructions' | 'outputFormat'>): Provider {
@@ -102,7 +111,7 @@ function azure(key: string, region: string): Provider {
     const response = await fetchOnce(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, { method: 'POST', headers: {
       'Ocp-Apim-Subscription-Key': key, 'Content-Type': 'application/ssml+xml', 'X-Microsoft-OutputFormat': 'riff-24khz-16bit-mono-pcm', 'User-Agent': 'video-review',
     }, body: `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><voice name="${voice}">${Bun.escapeHTML(text)}</voice></speak>` });
-    if (!response.ok) throw new Error(`HTTP ${response.status} ${await response.text()}`);
+    if (!response.ok) throw new APICallError({ message: response.statusText, url: response.url, requestBodyValues: {}, statusCode: response.status, responseBody: await response.text() });
     return new Uint8Array(await response.arrayBuffer());
   } };
 }

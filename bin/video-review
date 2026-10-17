@@ -699,7 +699,7 @@ var require_dist = __commonJS(function(exports, module) {
 
 // cli.ts
 import { mkdir as mkdir2, readdir, realpath, rename as rename2, rm as rm2, readFile, writeFile as writeFile2, stat } from "fs/promises";
-import { basename as basename2, dirname as dirname2, join as join2, resolve as resolve2 } from "path";
+import { basename as basename2, dirname, join as join2, resolve as resolve2 } from "path";
 import { createHash as createHash2 } from "crypto";
 import { createReadStream } from "fs";
 
@@ -808,7 +808,7 @@ dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:10px 0
 import { mkdir, rename, rm, writeFile } from "fs/promises";
 import { createHash } from "crypto";
 import { homedir } from "os";
-import { dirname, join } from "path";
+import { join } from "path";
 
 // node_modules/@ai-sdk/provider/dist/index.js
 var marker$16 = "vercel.ai.error";
@@ -26073,14 +26073,14 @@ var google = createGoogle();
 // voiceover.ts
 var style = "Speak like a colleague walking someone through a short demo: warm, clear and natural.";
 var fetchOnce = Object.assign((url, init) => fetch(url, { ...init, redirect: "error", signal: AbortSignal.timeout(120000) }), { preconnect: fetch.preconnect });
-function providers(env = process.env) {
-  const list = [];
+function providers() {
+  const env = process.env, list = [];
   if (env.GEMINI_API_KEY) {
     const model = "gemini-3.8-flash-tts";
     list.push(sdk({ provider: "gemini", model, voice: "Kore" }, createGoogle({ apiKey: env.GEMINI_API_KEY, fetch: fetchOnce }).speech(model), { instructions: style, outputFormat: "wav" }));
   }
   if (env.AZURE_SPEECH_KEY) {
-    const region = env.AZURE_SPEECH_REGION;
+    const region = env.AZURE_SPEECH_REGION?.toLowerCase();
     if (region && /^[a-z0-9]+$/.test(region))
       list.push(azure(env.AZURE_SPEECH_KEY, region));
     else
@@ -26104,15 +26104,17 @@ function redact(message) {
       message = message.replaceAll(key, "[redacted]");
   return message;
 }
+var speechDir = () => join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "video-review", "speech");
 function cachedSpeech({ provider, model, voice }, text) {
   const hash = createHash("sha256").update(JSON.stringify([provider, model, voice, style, text])).digest("hex");
-  return join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "video-review", "speech", `${hash}.wav`);
+  return join(speechDir(), `${hash}.wav`);
 }
 async function speakAll(voices, texts, measure) {
   const order = (await Promise.all(voices.map(async (provider) => ({
     provider,
     cached: (await Promise.all(texts.map((text) => Bun.file(cachedSpeech(provider, text)).exists()))).filter(Boolean).length
   })))).sort((a, b) => b.cached - a.cached);
+  await mkdir(speechDir(), { recursive: true });
   const failures = [];
   for (const [index, { provider }] of order.entries()) {
     try {
@@ -26130,8 +26132,7 @@ async function speakAll(voices, texts, measure) {
       const { provider: name, model, voice } = provider;
       return { voice: { provider: name, model, voice }, paths, seconds };
     } catch (error) {
-      const reason = APICallError.isInstance(error) ? `HTTP ${error.statusCode} ${error.message} ${error.responseBody ?? ""}` : error instanceof Error ? error.message : String(error);
-      failures.push(`${provider.provider}: ${redact(reason).replace(/\s+/g, " ").trim().slice(0, 500).replace(/\.$/, "")}`);
+      failures.push(`${provider.provider}: ${redact(reason(error)).replace(/\s+/g, " ").trim().slice(0, 500).replace(/\.$/, "")}`);
       const next = order[index + 1]?.provider;
       if (next)
         process.stderr.write(`${failures.at(-1)}. Speaking every line with ${next.provider} instead.
@@ -26145,10 +26146,18 @@ async function speak(provider, text) {
   if (await Bun.file(cached).exists())
     return cached;
   const audio = await provider.synthesize(text);
-  await mkdir(dirname(cached), { recursive: true });
   await writeFile(`${cached}.${process.pid}`, audio);
   await rename(`${cached}.${process.pid}`, cached);
   return cached;
+}
+function reason(error) {
+  if (!APICallError.isInstance(error))
+    return error instanceof Error ? error.message : String(error);
+  let body = error.responseBody ?? "";
+  try {
+    body = JSON.stringify(JSON.parse(body));
+  } catch {}
+  return [error.statusCode && `HTTP ${error.statusCode}`, error.message, body].filter(Boolean).join(" ");
 }
 function sdk(voice, model, options) {
   return { ...voice, synthesize: async (text) => (await generateSpeech({ model, text, voice: voice.voice, maxRetries: 0, ...options })).audio.uint8Array };
@@ -26163,7 +26172,7 @@ function azure(key, region) {
       "User-Agent": "video-review"
     }, body: `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><voice name="${voice}">${Bun.escapeHTML(text)}</voice></speak>` });
     if (!response.ok)
-      throw new Error(`HTTP ${response.status} ${await response.text()}`);
+      throw new APICallError({ message: response.statusText, url: response.url, requestBodyValues: {}, statusCode: response.status, responseBody: await response.text() });
     return new Uint8Array(await response.arrayBuffer());
   } };
 }
@@ -26387,7 +26396,7 @@ async function build(video, input, destination, voices) {
   const review = parseReview(JSON.parse(await readFile(input, "utf8")), main.seconds);
   const media = new Map;
   for (const [index, step] of review.steps.entries()) {
-    const path = step.source === undefined ? source : await realpath(resolve2(dirname2(resolve2(input)), step.source));
+    const path = step.source === undefined ? source : await realpath(resolve2(dirname(resolve2(input)), step.source));
     let entry = media.get(path);
     if (!entry) {
       const image = isImage(path);
@@ -26407,7 +26416,7 @@ async function build(video, input, destination, voices) {
   for (const [index, step] of review.steps.entries()) {
     if (step.notes === undefined)
       continue;
-    const path = resolve2(dirname2(resolve2(input)), step.notes);
+    const path = resolve2(dirname(resolve2(input)), step.notes);
     step.notes = (await readFile(path, "utf8").catch(() => {
       throw new Error(`Step ${index + 1}: cannot read notes ${path}.`);
     })).trim();
@@ -26419,7 +26428,7 @@ async function build(video, input, destination, voices) {
   if (existing?.length && !existing.includes("timeline.json"))
     throw new Error(`${target} exists and is not a video-review output. Choose another --out directory.`);
   const output = `${target}.partial-${process.pid}`;
-  await mkdir2(dirname2(target), { recursive: true });
+  await mkdir2(dirname(target), { recursive: true });
   await mkdir2(output);
   try {
     await mkdir2(join2(output, "frames"));
