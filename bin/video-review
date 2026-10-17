@@ -26170,7 +26170,7 @@ function sdk(voice, model, options) {
 }
 function azure(key, region) {
   const voice = "en-US-AvaMultilingualNeural";
-  const synthesize = async (text) => {
+  return { provider: "azure", model: "neural", voice, async synthesize(text) {
     const response = await fetchOnce(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
       method: "POST",
       headers: { "Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml", "X-Microsoft-OutputFormat": "riff-24khz-16bit-mono-pcm", "User-Agent": "video-review" },
@@ -26179,8 +26179,7 @@ function azure(key, region) {
     if (!response.ok)
       throw new APICallError({ message: response.statusText, url: response.url, requestBodyValues: {}, statusCode: response.status, responseBody: await response.text() });
     return response.bytes();
-  };
-  return { provider: "azure", model: "neural", voice, synthesize };
+  } };
 }
 
 // cli.ts

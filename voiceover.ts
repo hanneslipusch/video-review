@@ -116,7 +116,7 @@ function azure(key: string, region: string): Provider {
   // A multilingual voice speaks each line in its own language: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support?tabs=tts
   const voice = 'en-US-AvaMultilingualNeural';
   // REST request and output formats: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech
-  const synthesize = async (text: string) => {
+  return { provider: 'azure', model: 'neural', voice, async synthesize(text) {
     const response = await fetchOnce(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
       method: 'POST',
       headers: { 'Ocp-Apim-Subscription-Key': key, 'Content-Type': 'application/ssml+xml', 'X-Microsoft-OutputFormat': 'riff-24khz-16bit-mono-pcm', 'User-Agent': 'video-review' },
@@ -124,6 +124,5 @@ function azure(key: string, region: string): Provider {
     });
     if (!response.ok) throw new APICallError({ message: response.statusText, url: response.url, requestBodyValues: {}, statusCode: response.status, responseBody: await response.text() });
     return response.bytes();
-  };
-  return { provider: 'azure', model: 'neural', voice, synthesize };
+  } };
 }
