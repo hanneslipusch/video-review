@@ -2,7 +2,7 @@
 // @bun
 
 // cli.ts
-import { mkdir as mkdir2, readdir, realpath, rename as rename2, rm, readFile, writeFile as writeFile2, stat } from "fs/promises";
+import { mkdir as mkdir2, readdir, realpath, rename as rename2, rm as rm2, readFile, writeFile as writeFile2, stat } from "fs/promises";
 import { basename, dirname as dirname2, join as join2, resolve } from "path";
 import { createHash as createHash2 } from "crypto";
 import { createReadStream } from "fs";
@@ -109,7 +109,7 @@ dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:10px 0
 `;
 
 // voiceover.ts
-import { mkdir, rename, writeFile } from "fs/promises";
+import { mkdir, rename, rm, writeFile } from "fs/promises";
 import { createHash } from "crypto";
 import { homedir } from "os";
 import { dirname, join } from "path";
@@ -122,7 +122,7 @@ function providers(env = process.env) {
     if (/^[a-z0-9]+$/.test(env.AZURE_SPEECH_REGION ?? ""))
       list.push(azure(env.AZURE_SPEECH_KEY, env.AZURE_SPEECH_REGION));
     else
-      process.stderr.write(`AZURE_SPEECH_KEY needs AZURE_SPEECH_REGION, the resource region such as westeurope, so Azure is skipped.
+      process.stderr.write(`AZURE_SPEECH_KEY needs AZURE_SPEECH_REGION set to its resource region, such as westeurope, so Azure is skipped.
 `);
   }
   if (env.ELEVENLABS_API_KEY) {
@@ -144,20 +144,25 @@ function cachedSpeech({ provider, model, voice }, text) {
   const hash = createHash("sha256").update(JSON.stringify([provider, model, voice, style, text])).digest("hex");
   return join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "video-review", "speech", `${hash}.wav`);
 }
-async function speakAll(voices, texts) {
-  const cached = await Promise.all(voices.map(async (p) => (await Promise.all(texts.map((t) => Bun.file(cachedSpeech(p, t)).exists()))).every(Boolean)));
-  const order = [...voices.filter((_, i) => cached[i]), ...voices.filter((_, i) => !cached[i])];
+async function speakAll(voices, texts, measure) {
+  const cached = await Promise.all(voices.map(async (p) => (await Promise.all(texts.map((t) => Bun.file(cachedSpeech(p, t)).exists()))).filter(Boolean).length));
+  const order = voices.map((provider, i) => ({ provider, cached: cached[i] })).sort((a, b) => b.cached - a.cached).map(({ provider }) => provider);
   const failures = [];
   for (const [index, provider] of order.entries()) {
     try {
-      const paths = [];
+      const paths = [], seconds = [];
       for (const [line, text] of texts.entries()) {
         process.stderr.write(`Voiceover ${line + 1}/${texts.length} (${provider.provider})
 `);
-        paths.push(await speak(provider, text));
+        const path = await speak(provider, text);
+        seconds.push(await measure(path).catch(async (error) => {
+          await rm(path, { force: true });
+          throw error;
+        }));
+        paths.push(path);
       }
       const { provider: name, model, voice } = provider;
-      return { voice: { provider: name, model, voice }, paths };
+      return { voice: { provider: name, model, voice }, paths, seconds };
     } catch (error) {
       failures.push(redact(error instanceof Error ? error.message : String(error)));
       const next = order[index + 1];
@@ -184,7 +189,8 @@ async function post(provider, url, headers, body) {
   const response = await fetch(url, { method: "POST", headers, body, redirect: "error", signal: AbortSignal.timeout(120000) });
   if (response.ok)
     return response;
-  const reason = /"message":\s*"([^"]+)"/.exec(await response.text())?.[1]?.trim().replace(/\.$/, "").slice(0, 200);
+  const message = /"message":\s*("(?:[^"\\]|\\.)*")/.exec(await response.text())?.[1];
+  const reason = message && redact(String(JSON.parse(message))).trim().replace(/\.$/, "");
   throw new Error(`${provider} returned HTTP ${response.status}${reason ? `: ${reason}` : ""}.`);
 }
 function gemini(key) {
@@ -393,9 +399,10 @@ An image step shows for as long as its line needs.
 --captions-only    Build without speech, when the user asks for a silent review.
 --help             Show the input contract and example before recording.
 
-The build speaks each line into video.mp4 with the first provider whose settings are set: GEMINI_API_KEY,
-then AZURE_SPEECH_KEY with AZURE_SPEECH_REGION, then ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID. When one fails,
-the next speaks every line, so a review keeps one voice. Without any, the review is captions-only.
+The build speaks each line into video.mp4 with one provider, in this order of the ones set: GEMINI_API_KEY,
+AZURE_SPEECH_KEY with AZURE_SPEECH_REGION, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID. One that already spoke most
+of the lines goes first. When one fails, the next speaks every line, so a review keeps one voice. Without any, the
+review is captions-only.
 Speech is cached in $XDG_CACHE_HOME/video-review/speech (default ~/.cache), so a rebuild requests only changed lines.
 Outputs: index.html, video.mp4, preview.gif (captioned, at 2.5\xD7, for pages that cannot play video), poster.jpg,
 captions.vtt, chapters.vtt, thumbnails.vtt, thumbnails.jpg, timeline.json, and frames/*.jpg: per step, its first,
@@ -434,6 +441,7 @@ async function probe(path, video = false) {
     throw new Error(`Cannot read a positive media duration below 24 hours: ${basename(path)}`);
   return { seconds, width, height };
 }
+var speechSeconds = async (path) => (await probe(path)).seconds;
 async function sha256(path) {
   const hasher = createHash2("sha256");
   for await (const chunk of createReadStream(path))
@@ -486,9 +494,9 @@ async function build(video, input, destination, voices) {
     await mkdir2(join2(output, "frames"));
     const panels = await drawNotes(review.steps, output);
     const width = panels.some(Boolean) ? WIDTH + NOTE_WIDTH : WIDTH;
-    const spoken = voices.length ? await speakAll(voices, review.steps.map((step) => step.text)) : undefined;
+    const spoken = voices.length ? await speakAll(voices, review.steps.map((step) => step.text), speechSeconds) : undefined;
     const speech = spoken?.paths ?? [];
-    const lengths = spoken ? await Promise.all(speech.map(async (path) => (await probe(path)).seconds)) : review.steps.map(() => 0);
+    const lengths = spoken?.seconds ?? review.steps.map(() => 0);
     const voiceover = spoken !== undefined;
     const timeline = pace(review.steps, lengths);
     const total = timeline.at(-1).until;
@@ -589,12 +597,12 @@ async function build(video, input, destination, voices) {
     for (const [name, content] of Object.entries(assets))
       await writeFile2(join2(output, "vendor", name), Buffer.from(content, "base64"));
     await writeFile2(join2(output, "index.html"), renderPlayer(template, review.title, width, HEIGHT));
-    await rm(join2(output, "notes"), { recursive: true, force: true });
-    await rm(target, { recursive: true, force: true });
+    await rm2(join2(output, "notes"), { recursive: true, force: true });
+    await rm2(target, { recursive: true, force: true });
     await rename2(output, target);
     console.log(JSON.stringify({ player: join2(target, "index.html"), video: join2(target, "video.mp4"), preview: join2(target, "preview.gif"), frames: timeline.map((_, i) => join2(target, "frames", `${i + 1}.jpg`)) }));
   } catch (error) {
-    await rm(output, { recursive: true, force: true });
+    await rm2(output, { recursive: true, force: true });
     throw error;
   }
 }
@@ -624,10 +632,8 @@ async function lines(input, voices) {
   if (voices.length)
     requireFFmpeg();
   const texts = parseLines(JSON.parse(await readFile(input, "utf8")));
-  const paths = voices.length ? (await speakAll(voices, texts)).paths : [];
-  const seconds = [];
-  for (const [index, text] of texts.entries())
-    seconds.push(lineSeconds(text, paths[index] ? (await probe(paths[index])).seconds : 0));
+  const spoken = voices.length ? await speakAll(voices, texts, speechSeconds) : undefined;
+  const seconds = texts.map((text, index) => lineSeconds(text, spoken?.seconds[index] ?? 0));
   console.log(JSON.stringify({ seconds: seconds.map((s) => Math.ceil(s * 10) / 10) }));
 }
 async function frames(video, destination) {

@@ -65,7 +65,7 @@ The folder also holds `video.mp4` for chat, `frames/` with each step's first, mi
 
 ## Voiceover
 
-The build speaks each line with the first of these providers whose variables are set:
+The build speaks every line with one of these providers, the first whose variables are set:
 
 | Provider | Variables | Voice |
 |---|---|---|
@@ -73,7 +73,7 @@ The build speaks each line with the first of these providers whose variables are
 | [Azure AI Speech](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech) | `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`, such as `westeurope` | `en-US-AvaMultilingualNeural` |
 | [ElevenLabs](https://elevenlabs.io/docs/api-reference/text-to-speech/convert) | `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID`, a voice your account can use | yours, with `eleven_v4` |
 
-When a provider fails, for example on Gemini's daily quota, the next one speaks every line again, so a review never switches voice. To use one provider, set only its variables. Without any, the review is captions-only; pass `--captions-only` for a silent review. Only the caption text goes to the provider. Each line's speech is cached per provider and voice in `~/.cache/video-review/speech`, or under `$XDG_CACHE_HOME`, so a rebuild requests only the lines that changed and keeps the voice `video-review lines` timed. `timeline.json` names the provider that spoke.
+When a provider fails, for example on Gemini's daily quota, the next one speaks every line again, so a review never switches voice. To use one provider, set only its variables. Without any, the review is captions-only; pass `--captions-only` for a silent review. Only the caption text goes to the provider. Each line's speech is cached per provider and voice in `~/.cache/video-review/speech`, or under `$XDG_CACHE_HOME`, so a rebuild requests only the lines that changed. The provider that already spoke most of a review's lines goes first, so a rebuild keeps the voice `video-review lines` timed. `timeline.json` names the provider that spoke.
 
 ## Develop
 

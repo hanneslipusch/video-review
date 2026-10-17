@@ -1,4 +1,4 @@
-import { mkdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -14,7 +14,7 @@ export function providers(env: typeof process.env = process.env): Provider[] {
   if (env.GEMINI_API_KEY) list.push(gemini(env.GEMINI_API_KEY));
   if (env.AZURE_SPEECH_KEY) {
     if (/^[a-z0-9]+$/.test(env.AZURE_SPEECH_REGION ?? '')) list.push(azure(env.AZURE_SPEECH_KEY, env.AZURE_SPEECH_REGION!));
-    else process.stderr.write('AZURE_SPEECH_KEY needs AZURE_SPEECH_REGION, the resource region such as westeurope, so Azure is skipped.\n');
+    else process.stderr.write('AZURE_SPEECH_KEY needs AZURE_SPEECH_REGION set to its resource region, such as westeurope, so Azure is skipped.\n');
   }
   if (env.ELEVENLABS_API_KEY) {
     if (env.ELEVENLABS_VOICE_ID) list.push(elevenlabs(env.ELEVENLABS_API_KEY, env.ELEVENLABS_VOICE_ID));
@@ -35,21 +35,23 @@ export function cachedSpeech({ provider, model, voice }: Voice, text: string): s
   return join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'video-review', 'speech', `${hash}.wav`);
 }
 
-// Speaks every line with one provider, so a review never changes voice. A provider that has every line
-// cached goes first, so a build keeps the voice `lines` timed; on any failure the next provider respeaks all.
-export async function speakAll(voices: Provider[], texts: string[]): Promise<{ voice: Voice; paths: string[] }> {
-  const cached = await Promise.all(voices.map(async p => (await Promise.all(texts.map(t => Bun.file(cachedSpeech(p, t)).exists()))).every(Boolean)));
-  const order = [...voices.filter((_, i) => cached[i]), ...voices.filter((_, i) => !cached[i])];
+// Speaks and measures every line with one provider, so a review never changes voice. The provider that cached
+// most of these lines goes first, so a rebuild keeps the voice `lines` timed; on any failure the next respeaks all.
+export async function speakAll(voices: Provider[], texts: string[], measure: (path: string) => Promise<number>) {
+  const cached = await Promise.all(voices.map(async p => (await Promise.all(texts.map(t => Bun.file(cachedSpeech(p, t)).exists()))).filter(Boolean).length));
+  const order = voices.map((provider, i) => ({ provider, cached: cached[i]! })).sort((a, b) => b.cached - a.cached).map(({ provider }) => provider);
   const failures: string[] = [];
   for (const [index, provider] of order.entries()) {
     try {
-      const paths: string[] = [];
+      const paths: string[] = [], seconds: number[] = [];
       for (const [line, text] of texts.entries()) {
         process.stderr.write(`Voiceover ${line + 1}/${texts.length} (${provider.provider})\n`);
-        paths.push(await speak(provider, text));
+        const path = await speak(provider, text);
+        seconds.push(await measure(path).catch(async (error: unknown) => { await rm(path, { force: true }); throw error; }));
+        paths.push(path);
       }
       const { provider: name, model, voice } = provider;
-      return { voice: { provider: name, model, voice }, paths };
+      return { voice: { provider: name, model, voice } satisfies Voice, paths, seconds };
     } catch (error) {
       failures.push(redact(error instanceof Error ? error.message : String(error)));
       const next = order[index + 1];
@@ -75,7 +77,8 @@ async function post(provider: string, url: string, headers: Record<string, strin
   // A redirect would forward the key header to another host.
   const response = await fetch(url, { method: 'POST', headers, body, redirect: 'error', signal: AbortSignal.timeout(120_000) });
   if (response.ok) return response;
-  const reason = /"message":\s*"([^"]+)"/.exec(await response.text())?.[1]?.trim().replace(/\.$/, '').slice(0, 200);
+  const message = /"message":\s*("(?:[^"\\]|\\.)*")/.exec(await response.text())?.[1];
+  const reason = message && redact(String(JSON.parse(message))).trim().replace(/\.$/, '');
   throw new Error(`${provider} returned HTTP ${response.status}${reason ? `: ${reason}` : ''}.`);
 }
 

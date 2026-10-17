@@ -73,11 +73,12 @@ test('mixed sources retain image and video outcomes at the main canvas size', as
     const steps = [card, step, { ...step, source: 'other.mp4', start: 2, end: 4 }, { ...step, source: 'other.mp4' }, card];
     const input = join(dir, 'steps.json'), out = join(dir, 'review');
     // A key that cannot speak proves --captions-only never calls a provider.
-    const build = () => run(['bun', 'bin/video-review', 'build', join(dir, 'main.mp4'), input, '--out', out, '--captions-only'], { ...withoutKey, GEMINI_API_KEY: 'invalid' });
+    const build = () => run(['bun', 'bin/video-review', 'build', join(dir, 'main.mp4'), input, '--out', out, '--captions-only'], 
+      { ...withoutKey, GEMINI_API_KEY: 'invalid', AZURE_SPEECH_KEY: 'invalid', AZURE_SPEECH_REGION: 'westeurope', ELEVENLABS_API_KEY: 'invalid', ELEVENLABS_VOICE_ID: 'invalid' });
     await writeFile(input, JSON.stringify({ title: 'Mixed', steps }));
     build();
     const timeline = JSON.parse(await readFile(join(out, 'timeline.json'), 'utf8'));
-    expect(timeline.sources.length).toBe(3);
+    expect([timeline.sources.length, timeline.voiceover]).toEqual([3, null]);
     expect(timeline.steps.map((s: { source?: string }) => s.source)).toEqual(['card.png', undefined, 'other.mp4', 'other.mp4', 'card.png']);
     const video = JSON.parse(run(['ffprobe', '-v', 'error', '-show_entries', 'stream=width,height,sample_aspect_ratio', '-of', 'json', join(out, 'video.mp4')]));
     expect(video.streams[0]).toEqual({ width: 1920, height: 1080, sample_aspect_ratio: '1:1' });

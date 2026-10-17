@@ -50,9 +50,10 @@ An image step shows for as long as its line needs.
 --captions-only    Build without speech, when the user asks for a silent review.
 --help             Show the input contract and example before recording.
 
-The build speaks each line into video.mp4 with the first provider whose settings are set: GEMINI_API_KEY,
-then AZURE_SPEECH_KEY with AZURE_SPEECH_REGION, then ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID. When one fails,
-the next speaks every line, so a review keeps one voice. Without any, the review is captions-only.
+The build speaks each line into video.mp4 with one provider, in this order of the ones set: GEMINI_API_KEY,
+AZURE_SPEECH_KEY with AZURE_SPEECH_REGION, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID. One that already spoke most
+of the lines goes first. When one fails, the next speaks every line, so a review keeps one voice. Without any, the
+review is captions-only.
 Speech is cached in $XDG_CACHE_HOME/video-review/speech (default ~/.cache), so a rebuild requests only changed lines.
 Outputs: index.html, video.mp4, preview.gif (captioned, at 2.5×, for pages that cannot play video), poster.jpg,
 captions.vtt, chapters.vtt, thumbnails.vtt, thumbnails.jpg, timeline.json, and frames/*.jpg: per step, its first,
@@ -90,6 +91,8 @@ async function probe(path: string, video = false): Promise<{ seconds: number; wi
     throw new Error(`Cannot read a positive media duration below 24 hours: ${basename(path)}`);
   return { seconds, width, height };
 }
+
+const speechSeconds = async (path: string) => (await probe(path)).seconds;
 
 async function sha256(path: string): Promise<string> {
   const hasher = createHash('sha256');
@@ -142,9 +145,9 @@ async function build(video: string, input: string, destination: string, voices: 
     await mkdir(join(output, 'frames'));
     const panels = await drawNotes(review.steps, output);
     const width = panels.some(Boolean) ? WIDTH + NOTE_WIDTH : WIDTH;
-    const spoken = voices.length ? await speakAll(voices, review.steps.map(step => step.text)) : undefined;
+    const spoken = voices.length ? await speakAll(voices, review.steps.map(step => step.text), speechSeconds) : undefined;
     const speech = spoken?.paths ?? [];
-    const lengths = spoken ? await Promise.all(speech.map(async path => (await probe(path)).seconds)) : review.steps.map(() => 0);
+    const lengths = spoken?.seconds ?? review.steps.map(() => 0);
     const voiceover = spoken !== undefined;
     const timeline = pace(review.steps, lengths);
     const total = timeline.at(-1)!.until;
@@ -243,9 +246,8 @@ async function drawNotes(steps: { chapter: string; notes?: string }[], output: s
 async function lines(input: string, voices: Provider[]) {
   if (voices.length) requireFFmpeg();
   const texts = parseLines(JSON.parse(await readFile(input, 'utf8')));
-  const paths = voices.length ? (await speakAll(voices, texts)).paths : [];
-  const seconds: number[] = [];
-  for (const [index, text] of texts.entries()) seconds.push(lineSeconds(text, paths[index] ? (await probe(paths[index])).seconds : 0));
+  const spoken = voices.length ? await speakAll(voices, texts, speechSeconds) : undefined;
+  const seconds = texts.map((text, index) => lineSeconds(text, spoken?.seconds[index] ?? 0));
   // Round up so a recording that waits this long still covers the line.
   console.log(JSON.stringify({ seconds: seconds.map((s) => Math.ceil(s * 10) / 10) }));
 }
