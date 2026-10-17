@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const { GEMINI_API_KEY: _, ...withoutKey } = process.env;
+const { GEMINI_API_KEY: _g, AZURE_SPEECH_KEY: _a, ELEVENLABS_API_KEY: _e, ...withoutKey } = process.env;
 const run = (command: string[], env = withoutKey) => {
   const result = spawnSync(command[0]!, command.slice(1), { encoding: 'utf8', env });
   if (result.error) throw result.error;
@@ -72,7 +72,7 @@ test('mixed sources retain image and video outcomes at the main canvas size', as
     const card = { source: 'card.png', chapter: 'Card', text: 'Shown.' };
     const steps = [card, step, { ...step, source: 'other.mp4', start: 2, end: 4 }, { ...step, source: 'other.mp4' }, card];
     const input = join(dir, 'steps.json'), out = join(dir, 'review');
-    // A key that cannot speak proves --captions-only never calls Gemini.
+    // A key that cannot speak proves --captions-only never calls a provider.
     const build = () => run(['bun', 'bin/video-review', 'build', join(dir, 'main.mp4'), input, '--out', out, '--captions-only'], { ...withoutKey, GEMINI_API_KEY: 'invalid' });
     await writeFile(input, JSON.stringify({ title: 'Mixed', steps }));
     build();

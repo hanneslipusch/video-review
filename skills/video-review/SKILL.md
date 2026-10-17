@@ -27,7 +27,7 @@ Then say what watching can't show: a choice a reviewer would question and why, a
 Good: "Totals round per row, like the invoice PDF, so the sum can differ by a cent."
 Good: "Seeded with three sites; a list of 500 is unchecked."
 
-Name things as people say them, and end on the result. When Gemini fails, as on quota, build with `--captions-only`, deliver it, and tell the user what to fix for a voiceover.
+Name things as people say them, and end on the result. When every speech provider fails, as on quota, build with `--captions-only`, deliver it, and tell the user what to fix for a voiceover.
 
 ## Share
 

@@ -2,6 +2,10 @@
 declare module 'bun' {
   interface Env {
     GEMINI_API_KEY?: string;
+    AZURE_SPEECH_KEY?: string;
+    AZURE_SPEECH_REGION?: string;
+    ELEVENLABS_API_KEY?: string;
+    ELEVENLABS_VOICE_ID?: string;
     XDG_CACHE_HOME?: string;
   }
 }
