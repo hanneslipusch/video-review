@@ -8,7 +8,6 @@ const style = 'Speak like a colleague walking someone through a short demo: warm
 export type Voice = { provider: string; model: string; voice: string };
 export type Provider = Voice & { synthesize(text: string): Promise<Buffer> };
 
-// Every provider whose settings are complete, in the order a build tries them.
 export function providers(env: typeof process.env = process.env): Provider[] {
   const list: Provider[] = [];
   if (env.GEMINI_API_KEY) list.push(gemini(env.GEMINI_API_KEY));
