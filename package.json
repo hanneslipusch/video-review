@@ -1,6 +1,6 @@
 {
   "name": "video-review",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Turn an agent's screen recording into a narrated review video.",
   "repository": "github:hanneslipusch/video-review",
   "license": "MIT",
@@ -21,10 +21,10 @@
     "prepack": "bun run build"
   },
   "devDependencies": {
-    "@types/bun": "^1.4.2",
-    "@videojs/html": "10.0.1"
-  },
-  "patchedDependencies": {
-    "@videojs/html@10.0.1": "patches/@videojs%2Fhtml@10.0.1.patch"
+    "@ai-sdk/elevenlabs": "^3.0.62",
+    "@ai-sdk/google": "^4.0.98",
+    "@types/bun": "^1.4.3",
+    "@videojs/html": "10.0.1",
+    "ai": "^7.0.142"
   }
 }
