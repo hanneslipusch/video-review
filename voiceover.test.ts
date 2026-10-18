@@ -44,7 +44,7 @@ test('a provider failing midway hands every line to the next one', async () => {
 
 test('audio without a duration is not kept, and the error gives each reason without a key', async () => {
   const saved = { ...process.env };
-  Object.assign(process.env, { GEMINI_API_KEY: 'g-secret', AZURE_SPEECH_KEY: 'a-secret', ELEVENLABS_API_KEY: 'e-secret' });
+  Object.assign(process.env, { GEMINI_API_KEY: 'g-secret', AZURE_API_KEY: 'a-secret', ELEVENLABS_API_KEY: 'e-secret' });
   try {
     const broken = fake('azure', async () => wav('broken'));
     const quota = fake('elevenlabs', async () => { throw new APICallError({ message: 'Unauthorized', url: 'https://api.elevenlabs.io', requestBodyValues: {}, statusCode: 401,
@@ -53,6 +53,6 @@ test('audio without a duration is not kept, and the error gives each reason with
       'azure: Cannot read a duration. elevenlabs: HTTP 401 Unauthorized {"code":"quota_exceeded","keys":"[redacted] [redacted] [redacted]"}. Build with --captions-only');
     expect(await Bun.file(cachedSpeech(broken, 'Save.')).exists()).toBe(false);
   } finally {
-    for (const name of ['GEMINI_API_KEY', 'AZURE_SPEECH_KEY', 'ELEVENLABS_API_KEY']) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];
+    for (const name of ['GEMINI_API_KEY', 'AZURE_API_KEY', 'ELEVENLABS_API_KEY']) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];
   }
 });

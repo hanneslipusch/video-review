@@ -26083,12 +26083,12 @@ function providers() {
     const model = createGoogle({ apiKey: env.GEMINI_API_KEY, fetch: fetchOnce }).speech(voice.model);
     list.push(sdk(voice, model, { instructions: style, outputFormat: "wav" }));
   }
-  if (env.AZURE_SPEECH_KEY) {
-    const region = env.AZURE_SPEECH_REGION ?? "";
-    if (/^[a-z0-9]+$/i.test(region))
-      list.push(azure(env.AZURE_SPEECH_KEY, region));
+  if (env.AZURE_API_KEY) {
+    const resource = env.AZURE_RESOURCE_NAME ?? "";
+    if (/^[a-z0-9-]+$/i.test(resource))
+      list.push(azure(env.AZURE_API_KEY, resource));
     else
-      process.stderr.write(`AZURE_SPEECH_KEY needs AZURE_SPEECH_REGION set to its resource region, such as westeurope, so Azure is skipped.
+      process.stderr.write(`AZURE_API_KEY needs AZURE_RESOURCE_NAME, the name of its Azure AI Services resource, so Azure is skipped.
 `);
   }
   if (env.ELEVENLABS_API_KEY) {
@@ -26103,7 +26103,7 @@ function providers() {
   return list;
 }
 function redact(message) {
-  for (const key of [process.env.GEMINI_API_KEY, process.env.AZURE_SPEECH_KEY, process.env.ELEVENLABS_API_KEY])
+  for (const key of [process.env.GEMINI_API_KEY, process.env.AZURE_API_KEY, process.env.ELEVENLABS_API_KEY])
     if (key)
       message = message.replaceAll(key, "[redacted]");
   return message;
@@ -26168,10 +26168,10 @@ function reason(error) {
 function sdk(voice, model, options) {
   return { ...voice, synthesize: async (text) => (await generateSpeech({ model, text, voice: voice.voice, maxRetries: 0, ...options })).audio.uint8Array };
 }
-function azure(key, region) {
+function azure(key, resource) {
   const voice = "en-US-AvaMultilingualNeural";
   return { provider: "azure", model: "neural", voice, async synthesize(text) {
-    const response = await fetchOnce(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+    const response = await fetchOnce(`https://${resource}.cognitiveservices.azure.com/tts/cognitiveservices/v1`, {
       method: "POST",
       headers: { "Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml", "X-Microsoft-OutputFormat": "riff-24khz-16bit-mono-pcm", "User-Agent": "video-review" },
       body: `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><voice name="${voice}">${Bun.escapeHTML(text)}</voice></speak>`
@@ -26345,7 +26345,7 @@ An image step shows for as long as its line needs.
 --help             Show the input contract and example before recording.
 
 The build speaks each line into video.mp4 with one provider, in this order of the ones set: GEMINI_API_KEY,
-AZURE_SPEECH_KEY with AZURE_SPEECH_REGION, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID; one that already spoke most
+AZURE_API_KEY with AZURE_RESOURCE_NAME, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID; one that already spoke most
 lines goes first. If one fails, the next speaks every line. Without any, the review is captions-only.
 Speech is cached in $XDG_CACHE_HOME/video-review/speech (default ~/.cache), so a rebuild requests only changed lines.
 Outputs: index.html, video.mp4, preview.gif (captioned, at 2.5\xD7, for pages that cannot play video), poster.jpg,

@@ -26,11 +26,11 @@ export function providers(): Provider[] {
     const model = createGoogleGenerativeAI({ apiKey: env.GEMINI_API_KEY, fetch: fetchOnce }).speech(voice.model);
     list.push(sdk(voice, model, { instructions: style, outputFormat: 'wav' }));
   }
-  if (env.AZURE_SPEECH_KEY) {
-    // The region becomes the host name that receives the key.
-    const region = env.AZURE_SPEECH_REGION ?? '';
-    if (/^[a-z0-9]+$/i.test(region)) list.push(azure(env.AZURE_SPEECH_KEY, region));
-    else process.stderr.write('AZURE_SPEECH_KEY needs AZURE_SPEECH_REGION set to its resource region, such as westeurope, so Azure is skipped.\n');
+  if (env.AZURE_API_KEY) {
+    // The AI SDK's Azure variables: https://ai-sdk.dev/providers/ai-sdk-providers/azure. The resource name becomes the host that receives the key.
+    const resource = env.AZURE_RESOURCE_NAME ?? '';
+    if (/^[a-z0-9-]+$/i.test(resource)) list.push(azure(env.AZURE_API_KEY, resource));
+    else process.stderr.write('AZURE_API_KEY needs AZURE_RESOURCE_NAME, the name of its Azure AI Services resource, so Azure is skipped.\n');
   }
   if (env.ELEVENLABS_API_KEY) {
     if (env.ELEVENLABS_VOICE_ID) {
@@ -44,7 +44,7 @@ export function providers(): Provider[] {
 }
 
 export function redact(message: string): string {
-  for (const key of [process.env.GEMINI_API_KEY, process.env.AZURE_SPEECH_KEY, process.env.ELEVENLABS_API_KEY])
+  for (const key of [process.env.GEMINI_API_KEY, process.env.AZURE_API_KEY, process.env.ELEVENLABS_API_KEY])
     if (key) message = message.replaceAll(key, '[redacted]');
   return message;
 }
@@ -112,12 +112,12 @@ function sdk(voice: Voice, model: SpeechModel, options: Pick<Parameters<typeof g
 
 // @ai-sdk/azure appends a model to every voice name, so it reaches only HD and MAI voices, which most regions lack:
 // https://learn.microsoft.com/en-us/azure/ai-services/speech-service/regions?tabs=tts
-function azure(key: string, region: string): Provider {
+function azure(key: string, resource: string): Provider {
   // A multilingual voice speaks each line in its own language: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support?tabs=tts
   const voice = 'en-US-AvaMultilingualNeural';
-  // REST request and output formats: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech
+  // REST request and output formats; an AI Services resource serves speech on its own host: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech
   return { provider: 'azure', model: 'neural', voice, async synthesize(text) {
-    const response = await fetchOnce(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+    const response = await fetchOnce(`https://${resource}.cognitiveservices.azure.com/tts/cognitiveservices/v1`, {
       method: 'POST',
       headers: { 'Ocp-Apim-Subscription-Key': key, 'Content-Type': 'application/ssml+xml', 'X-Microsoft-OutputFormat': 'riff-24khz-16bit-mono-pcm', 'User-Agent': 'video-review' },
       body: `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><voice name="${voice}">${Bun.escapeHTML(text)}</voice></speak>`,

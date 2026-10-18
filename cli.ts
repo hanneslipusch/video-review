@@ -51,7 +51,7 @@ An image step shows for as long as its line needs.
 --help             Show the input contract and example before recording.
 
 The build speaks each line into video.mp4 with one provider, in this order of the ones set: GEMINI_API_KEY,
-AZURE_SPEECH_KEY with AZURE_SPEECH_REGION, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID; one that already spoke most
+AZURE_API_KEY with AZURE_RESOURCE_NAME, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID; one that already spoke most
 lines goes first. If one fails, the next speaks every line. Without any, the review is captions-only.
 Speech is cached in $XDG_CACHE_HOME/video-review/speech (default ~/.cache), so a rebuild requests only changed lines.
 Outputs: index.html, video.mp4, preview.gif (captioned, at 2.5×, for pages that cannot play video), poster.jpg,

@@ -63,7 +63,7 @@ The build speaks every line with the first provider whose variables are set:
 | Provider | Variables | Voice |
 |---|---|---|
 | [Gemini](https://aistudio.google.com/apikey) | `GEMINI_API_KEY` | Kore |
-| [Azure AI Speech](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech) | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` such as `westeurope` | `en-US-AvaMultilingualNeural` |
+| [Azure AI Speech](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech) | `AZURE_API_KEY`, `AZURE_RESOURCE_NAME` of an Azure AI Services resource | `en-US-AvaMultilingualNeural` |
 | [ElevenLabs](https://elevenlabs.io/docs/api-reference/text-to-speech/convert) | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | your voice, with `eleven_v4` |
 
 If that provider fails, as on Gemini's daily quota, the next one speaks every line, so a review keeps one voice. Only the caption text is sent. Speech is cached per line in `~/.cache/video-review/speech`, or under `$XDG_CACHE_HOME`, and a rebuild stays with the provider that already spoke most lines. With no key set, or with `--captions-only`, the review has captions only.

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const { GEMINI_API_KEY: _g, AZURE_SPEECH_KEY: _a, ELEVENLABS_API_KEY: _e, ...withoutKey } = process.env;
+const { GEMINI_API_KEY: _g, AZURE_API_KEY: _a, ELEVENLABS_API_KEY: _e, ...withoutKey } = process.env;
 const run = (command: string[], env = withoutKey) => {
   const result = spawnSync(command[0]!, command.slice(1), { encoding: 'utf8', env });
   if (result.error) throw result.error;
