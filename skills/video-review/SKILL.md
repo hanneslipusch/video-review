@@ -5,7 +5,7 @@ description: Build a narrated review video from recordings, screenshots and clip
 
 # Video review
 
-A reviewer watches this one video instead of running your work. Done when every change and its result is on screen, the lines say what you decided and didn't check, and the frames the build prints for each step show what its line says.
+A reviewer watches this one video instead of running your work. Done when every change and its result is on screen, the lines say what you decided and didn't check, and you have opened every frame the build prints at full size and each one shows its line sharp and true to the screen.
 
 ## Show the change
 
