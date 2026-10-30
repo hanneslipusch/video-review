@@ -79,7 +79,7 @@ export async function speakAll(voices: Provider[], texts: string[], measure: (pa
     } catch (error) {
       failures.push(`${provider.provider}: ${reason(error)}`);
       const next = order[index + 1]?.provider;
-      if (next) process.stderr.write(`${failures.at(-1)}. Speaking every line with ${next.provider} instead.\n`);
+      if (next) process.stderr.write(`${failures.at(-1)}. Speaking every line with ${next.provider} instead; the voiceover stays whole, nothing to fix.\n`);
     }
   }
   throw new Error(`${failures.join('. ')}. Build with --captions-only, deliver it, and tell the user what to fix for a voiceover.`);

@@ -26139,7 +26139,7 @@ async function speakAll(voices, texts, measure) {
       failures.push(`${provider.provider}: ${reason(error)}`);
       const next = order[index + 1]?.provider;
       if (next)
-        process.stderr.write(`${failures.at(-1)}. Speaking every line with ${next.provider} instead.
+        process.stderr.write(`${failures.at(-1)}. Speaking every line with ${next.provider} instead; the voiceover stays whole, nothing to fix.
 `);
     }
   }
