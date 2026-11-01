@@ -28215,7 +28215,7 @@ async function frames(video, destination) {
   const { seconds } = await probe(await realpath(video), true);
   await mkdir2(output, { recursive: true });
   for (const name of await readdir(output))
-    if (/^(\d{4}\.\d|sheet-\d+)\.jpg$/.test(name))
+    if (/^(\d+\.\d|sheet-\d+)\.jpg$/.test(name))
       await rm2(join2(output, name));
   const sample = `fps=${1 / FRAME_STEP}:start_time=0,trim=end_frame=${Math.floor(seconds / FRAME_STEP) + 1},format=yuv420p`;
   await run(["ffmpeg", "-v", "error", "-y", "-reinit_filter:v", "0", "-i", video, "-vf", sample, "-q:v", "3", join2(output, "frame-%d.jpg")]);
