@@ -257,6 +257,8 @@ async function frames(video: string, destination: string) {
   const output = resolve(destination);
   const { seconds } = await probe(await realpath(video), true);
   await mkdir(output, { recursive: true });
+  // An earlier, longer recording's frames and sheets would read as this one's.
+  for (const name of await readdir(output)) if (/^(\d{4}\.\d|sheet-\d+)\.jpg$/.test(name)) await rm(join(output, name));
   // The fps filter pads past the end; stop at the last timestamp inside the recording.
   const sample = `fps=${1 / FRAME_STEP}:start_time=0,trim=end_frame=${Math.floor(seconds / FRAME_STEP) + 1},format=yuv420p`;
   await run(['ffmpeg', '-v', 'error', '-y', '-reinit_filter:v', '0', '-i', video, '-vf', sample, '-q:v', '3', join(output, 'frame-%d.jpg')]);
