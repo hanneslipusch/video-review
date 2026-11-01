@@ -80,9 +80,9 @@ export function pace(steps: Step[], speech: number[]): Chapter[] {
     const needed = lineSeconds(step.text, speechSeconds);
     const footage = step.source !== undefined && isImage(step.source) ? needed : Math.round((step.end - step.start) * FPS) / FPS;
     if (footage < needed - 1e-6) {
-      // Speech or reading time grows with the words; the tail after speech does not.
+      // Speech or reading time grows with the words; the tail after speech and the shortest caption do not.
       const words = step.text.split(/\s+/).length, fixed = speechSeconds > 0 ? SPEECH_TAIL_SECONDS : 0;
-      const keep = Math.floor(words * (footage - fixed) / (needed - fixed));
+      const keep = speechSeconds > 0 || footage >= lineSeconds('', 0) ? Math.floor(words * (footage - fixed) / (needed - fixed)) : 0;
       short.push(`Step ${index + 1}: its line needs ${needed.toFixed(1)} s; its footage is ${footage.toFixed(1)} s. `
         + (keep > 0 ? `Cut about ${words - keep} of its ${words} words, or widen its interval.` : 'Widen its interval, or merge it with the next step.'));
     }
