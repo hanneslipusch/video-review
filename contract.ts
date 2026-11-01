@@ -1,6 +1,6 @@
-import { PLAYBACK_RATE } from './rate';
+import { FPS, PLAYBACK_RATE } from './playback';
 
-export const CHAPTER_LIMIT = 20, FPS = 30;
+export const CHAPTER_LIMIT = 20;
 // Netflix's adult reading speed and shortest subtitle event, in watching time at PLAYBACK_RATE:
 // https://partnerhelp.netflixstudios.com/hc/en-us/articles/217350977-English-USA-Timed-Text-Style-Guide
 // https://partnerhelp.netflixstudios.com/hc/en-us/articles/215758617-Timed-Text-Style-Guide-General-Requirements

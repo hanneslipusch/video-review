@@ -1,11 +1,45 @@
 // Define <video-player> before the UI elements, or they never find their player.
 import './player-element';
 import '@videojs/html/video/neutral-ui';
-import { PLAYBACK_RATE } from './rate';
+import { FPS, PLAYBACK_RATE, PLAYBACK_RATES } from './playback';
 
 const video = document.querySelector('video')!;
 // Loading a clip resets playbackRate to defaultPlaybackRate, so set both.
 video.defaultPlaybackRate = video.playbackRate = PLAYBACK_RATE;
+const chapters = [...video.textTracks].find(track => track.kind === 'chapters')!;
+const shortcuts = document.querySelector('dialog')!;
+document.querySelector('#shortcuts-button')!.addEventListener('click', () => shortcuts.showModal());
+// A modal leaves document listeners live, so keys inside it stop short of the player's shortcuts; ? still closes it.
+shortcuts.addEventListener('keydown', event => { if (event.key !== '?') event.stopPropagation(); });
+// A clicked seek bar keeps focus and takes the arrows and Space for itself; YouTube's shortcuts work on after a click.
+document.querySelector('media-time-slider')!.addEventListener('pointerup', () => (document.activeElement as HTMLElement).blur());
+
+// YouTube's shortcuts that Video.js has no action for: https://support.google.com/youtube/answer/7631406
+// Like YouTube, speed and frame steps follow the physical , and . keys, so Shift+. speeds up on any layout
+// (on a German one it types :). ? is the typed character, so it also opens the list on layouts without Shift+/.
+// Chapters take Option on a Mac, where Control+arrows switch desktops, and Control elsewhere, where Alt+arrows go back.
+const chapterKey = /Mac/.test(navigator.userAgent) ? 'altKey' : 'ctrlKey';
+document.addEventListener('keydown', event => {
+  if (event.defaultPrevented || event.metaKey) return;
+  const forward = event.code === 'Period' || event.key === 'ArrowRight';
+  const step = event.code === 'Comma' || event.code === 'Period';
+  if (event.key === '?') {
+    if (event.repeat) return;
+    if (shortcuts.open) shortcuts.close(); else shortcuts.showModal();
+  } else if (step && event.shiftKey) {
+    video.playbackRate = Math.min(PLAYBACK_RATES.at(-1)!, Math.max(0.25, video.playbackRate + (forward ? 0.25 : -0.25)));
+  } else if (step && video.paused) {
+    video.currentTime += (forward ? 1 : -1) / FPS;
+  } else if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && event[chapterKey]) {
+    // Like YouTube, back goes to the previous chapter's start, however far into this one.
+    const starts = [...chapters.cues ?? []].map(cue => cue.startTime);
+    const current = starts.findLastIndex(start => start <= video.currentTime + 0.5 / FPS);
+    const target = starts[forward ? current + 1 : Math.max(0, current - 1)];
+    if (target === undefined) return;
+    video.currentTime = target;
+  } else return;
+  event.preventDefault();
+});
 
 // Seeking a served file needs HTTP Range support, which servers such as Python's http.server lack;
 // a downloaded copy seeks anywhere. Until it arrives, or if it fails, the served file plays.

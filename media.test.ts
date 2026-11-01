@@ -59,6 +59,10 @@ test('color metadata changes preserve every interval', async () => {
     run(['bun', 'bin/video-review', 'frames', join(dir, 'source.mp4'), '--out', join(dir, 'frames')]);
     const sampled = (await readdir(join(dir, 'frames'))).sort();
     expect([sampled.length, sampled[0], sampled[1], sampled.at(-3), ...sampled.slice(-2)]).toEqual([19, '0000.0.jpg', '0000.5.jpg', '0008.0.jpg', 'sheet-1.jpg', 'sheet-2.jpg']);
+    run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=s=64x48:d=1:r=30', '-c:v', 'libx264', join(dir, 'short.mp4')]);
+    await writeFile(join(dir, 'frames', '10000.0.jpg'), '');
+    run(['bun', 'bin/video-review', 'frames', join(dir, 'short.mp4'), '--out', join(dir, 'frames')]);
+    expect((await readdir(join(dir, 'frames'))).sort()).toEqual(['0000.0.jpg', '0000.5.jpg', 'sheet-1.jpg']);
   } finally { await rm(dir, { recursive: true, force: true }); }
 }, 30_000);
 
