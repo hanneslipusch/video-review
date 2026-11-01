@@ -27769,8 +27769,9 @@ async function speakAll(voices, texts, measure) {
     } catch (error) {
       failures.push(`${provider.provider}: ${reason(error)}`);
       const next = order[index + 1]?.provider;
+      const answer = APICallError.isInstance(error) && error.statusCode ? `answered HTTP ${error.statusCode}` : "failed";
       if (next)
-        process.stderr.write(`${failures.at(-1)}. Speaking every line with ${next.provider} instead; the voiceover stays whole, nothing to fix.
+        process.stderr.write(`Voiceover: ${provider.provider} ${answer}, so ${next.provider} speaks every line.
 `);
     }
   }
@@ -27884,16 +27885,18 @@ function pace(steps, speech) {
     const speechSeconds = speech[index];
     const needed = lineSeconds(step.text, speechSeconds);
     const footage = step.source !== undefined && isImage(step.source) ? needed : Math.round((step.end - step.start) * FPS) / FPS;
-    if (footage < needed - 0.000001)
-      short.push(`Step ${index + 1}: its line needs ${needed.toFixed(1)} s; its footage is ${footage.toFixed(1)} s.`);
+    if (footage < needed - 0.000001) {
+      const words = step.text.split(/\s+/).length, fixed = speechSeconds > 0 ? SPEECH_TAIL_SECONDS : 0;
+      const keep = speechSeconds > 0 || footage >= lineSeconds("", 0) ? Math.floor(words * (footage - fixed) / (needed - fixed)) : 0;
+      short.push(`Step ${index + 1}: its line needs ${needed.toFixed(1)} s; its footage is ${footage.toFixed(1)} s. ` + (keep > 0 ? `Cut about ${words - keep} of its ${words} words, or widen its interval.` : "Widen its interval, or merge it with the next step."));
+    }
     const chapter = { ...step, at, until: at + footage, speechSeconds };
     at = chapter.until;
     return chapter;
   });
   if (short.length)
-    throw new Error(`${short.join(`
-`)}
-Widen each interval to footage that still shows the step, or shorten its line.`);
+    throw new Error(short.join(`
+`));
   return chapters;
 }
 function vttTime(seconds) {

@@ -1,4 +1,4 @@
-import { test, expect, beforeEach, afterEach } from 'bun:test';
+import { test, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -35,9 +35,16 @@ test('the provider that cached most lines speaks the review, requesting only the
 
 test('a provider failing midway hands every line to the next one', async () => {
   const asked: string[] = [];
-  const gemini = fake('gemini', async text => { if (text === 'Done.') throw new Error('gemini returned HTTP 429.'); return wav(text); });
+  const gemini = fake('gemini', async text => {
+    if (text === 'Done.') throw new APICallError({ message: 'Payment Required', url: 'https://example.com', requestBodyValues: {}, statusCode: 402, responseBody: '{"message": "Your prepayment credits are depleted."}' });
+    return wav(text);
+  });
   const azure = recorder('azure', asked);
+  const stderr = spyOn(process.stderr, 'write');
   const spoken = await speakAll([gemini, azure], ['Save.', 'Done.'], measure);
+  const printed = stderr.mock.calls.map(([text]) => String(text));
+  stderr.mockRestore();
+  expect(printed).toContain('Voiceover: gemini answered HTTP 402, so azure speaks every line.\n');
   expect([spoken.voice.provider, asked, spoken.seconds]).toEqual(['azure', ['Save.', 'Done.'], [1, 1]]);
   expect(spoken.paths).toEqual(['Save.', 'Done.'].map(line => cachedSpeech(azure, line)));
 });
