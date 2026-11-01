@@ -37,6 +37,8 @@ test('a step shows only its own footage, and the build names every step too shor
   const [shown, card] = pace([step, { ...step, source: 'card.png', start: 0, end: 1 }], [0, 6]);
   expect([shown!.at, shown!.until, card!.until - card!.at]).toEqual([0, 4, 6.5]);
   expect(() => pace([step, { ...step, start: 4, end: 5 }, { ...step, start: 5, end: 6 }], [0, 0, 2]))
-    .toThrow('Step 2: its line needs 2.2 s; its footage is 1.0 s.\nStep 3: its line needs 2.5 s; its footage is 1.0 s.');
+    .toThrow('Step 2: its line needs 2.2 s; its footage is 1.0 s. Cut about 3 of its 4 words, or widen its interval.\n'
+      + 'Step 3: its line needs 2.5 s; its footage is 1.0 s. Cut about 3 of its 4 words, or widen its interval.');
+  expect(() => pace([{ ...step, end: 0.2 }], [0])).toThrow('its footage is 0.2 s. Widen its interval, or merge it with the next step.');
   expect(parseLines({ steps: [{ text: ' Saved. ' }] })).toEqual(['Saved.']);
 });

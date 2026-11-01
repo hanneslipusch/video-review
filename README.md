@@ -46,7 +46,7 @@ In `steps.json`, each step plays its interval of the recording, in seconds, with
 }
 ```
 
-An interval must last as long as its line takes to read or hear, and the build names any step that is too short. When you record for the review, run `video-review lines steps.json` first: it prints the seconds each line needs. A step can also show another recording or a PNG card, or a panel of Markdown notes. `video-review build --help` lists every input and output.
+An interval must last as long as its line takes to read or hear, and the build names any step that is too short and about how many words to cut. When you record for the review, run `video-review lines steps.json` first: it prints the seconds each line needs. A step can also show another recording or a PNG card, or a panel of Markdown notes. `video-review build --help` lists every input and output.
 
 Serve the `review` folder from any static server, because browsers block its player script on `file://`.
 
