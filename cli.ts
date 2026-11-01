@@ -6,7 +6,8 @@ import { createReadStream } from 'node:fs';
 import { assets, template } from './assets.generated';
 import { providers, redact, speakAll, type Provider } from './voiceover';
 import { parseArgs } from 'node:util';
-import { CHAPTER_LIMIT, FPS, isImage, lineSeconds, notePage, parseLines, parseReview, pace, vtt, chaptersVtt, renderPlayer } from './contract';
+import { CHAPTER_LIMIT, isImage, lineSeconds, notePage, parseLines, parseReview, pace, vtt, chaptersVtt, renderPlayer } from './contract';
+import { FPS } from './playback';
 
 const FRAME_STEP = 0.5, PREVIEW_RATE = 2.5;
 // A 16:9 frame fills common screens in fullscreen; every source fits inside it.

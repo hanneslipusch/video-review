@@ -52,7 +52,7 @@ Serve the `review` folder from any static server, because browsers block its pla
 
 ## What the reviewer gets
 
-`index.html` plays the review at 1.5×, each step at recorded speed in a 16:9 frame, with its caption on screen at least as long as a reader needs. Hovering the progress bar previews a step. The [Video.js 10](https://videojs.org/) player is bundled, with no CDN.
+`index.html` plays the review at 1.5×, each step at recorded speed in a 16:9 frame, with its caption on screen at least as long as a reader needs. Hovering the progress bar previews a step, and [YouTube's keyboard shortcuts](https://support.google.com/youtube/answer/7631406) work, including <kbd>Ctrl</kbd>+<kbd>←</kbd>/<kbd>→</kbd> between steps; <kbd>?</kbd> lists them. The [Video.js 10](https://videojs.org/) player is bundled, with no CDN.
 
 The folder also holds `video.mp4` for chat, `frames/` with each step's first, middle and last frame, and `preview.gif` at 2.5× for pages that can't play video, such as a pull request. There, link the page first: GitHub shows a GIF over 5 MiB as a broken image.
 
