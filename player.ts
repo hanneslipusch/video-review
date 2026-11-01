@@ -15,17 +15,20 @@ shortcuts.addEventListener('keydown', event => { if (event.key !== '?') event.st
 document.querySelector('media-time-slider')!.addEventListener('pointerup', () => (document.activeElement as HTMLElement).blur());
 
 // YouTube's shortcuts that Video.js has no action for: https://support.google.com/youtube/answer/7631406
+// Like YouTube, speed and frame steps follow the physical , and . keys, so Shift+. speeds up on any layout
+// (on a German one it types :). ? is the typed character, so it also opens the list on layouts without Shift+/.
 // Chapters take Option on a Mac, where Control+arrows switch desktops, and Control elsewhere, where Alt+arrows go back.
 const chapterKey = /Mac/.test(navigator.userAgent) ? 'altKey' : 'ctrlKey';
 document.addEventListener('keydown', event => {
   if (event.defaultPrevented || event.metaKey) return;
-  const forward = event.key === '>' || event.key === '.' || event.key === 'ArrowRight';
+  const forward = event.code === 'Period' || event.key === 'ArrowRight';
+  const step = event.code === 'Comma' || event.code === 'Period';
   if (event.key === '?') {
     if (event.repeat) return;
     if (shortcuts.open) shortcuts.close(); else shortcuts.showModal();
-  } else if (event.key === '<' || event.key === '>') {
+  } else if (step && event.shiftKey) {
     video.playbackRate = Math.min(PLAYBACK_RATES.at(-1)!, Math.max(0.25, video.playbackRate + (forward ? 0.25 : -0.25)));
-  } else if ((event.key === ',' || event.key === '.') && video.paused) {
+  } else if (step && video.paused) {
     video.currentTime += (forward ? 1 : -1) / FPS;
   } else if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && event[chapterKey]) {
     // Like YouTube, back goes to the previous chapter's start, however far into this one.
