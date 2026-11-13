@@ -20,6 +20,14 @@ fetchOnce.preconnect = fetch.preconnect;
 
 export function providers(): Provider[] {
   const env = process.env, list: Provider[] = [];
+  if (env.ELEVENLABS_API_KEY) {
+    if (env.ELEVENLABS_VOICE_ID) {
+      // https://ai-sdk.dev/providers/ai-sdk-providers/elevenlabs#speech-models; the SDK puts the voice ID in the URL path unencoded.
+      const voice = { provider: 'elevenlabs', model: 'eleven_v4', voice: encodeURIComponent(env.ELEVENLABS_VOICE_ID) };
+      const model = createElevenLabs({ apiKey: env.ELEVENLABS_API_KEY, fetch: fetchOnce }).speech(voice.model);
+      list.push(sdk(voice, model, { outputFormat: 'wav_24000' }));
+    } else process.stderr.write('ELEVENLABS_API_KEY needs ELEVENLABS_VOICE_ID, a voice your account can use, so ElevenLabs is skipped.\n');
+  }
   if (env.GEMINI_API_KEY) {
     // https://ai-sdk.dev/providers/ai-sdk-providers/google-generative-ai#speech-models
     const voice = { provider: 'gemini', model: 'gemini-3.8-flash-tts', voice: 'Kore' };
@@ -31,14 +39,6 @@ export function providers(): Provider[] {
     const resource = env.AZURE_RESOURCE_NAME ?? '';
     if (/^[a-z0-9-]+$/i.test(resource)) list.push(azure(env.AZURE_API_KEY, resource));
     else process.stderr.write('AZURE_API_KEY needs AZURE_RESOURCE_NAME, the name of its Azure AI Services resource, so Azure is skipped.\n');
-  }
-  if (env.ELEVENLABS_API_KEY) {
-    if (env.ELEVENLABS_VOICE_ID) {
-      // https://ai-sdk.dev/providers/ai-sdk-providers/elevenlabs#speech-models; the SDK puts the voice ID in the URL path unencoded.
-      const voice = { provider: 'elevenlabs', model: 'eleven_v4', voice: encodeURIComponent(env.ELEVENLABS_VOICE_ID) };
-      const model = createElevenLabs({ apiKey: env.ELEVENLABS_API_KEY, fetch: fetchOnce }).speech(voice.model);
-      list.push(sdk(voice, model, { outputFormat: 'wav_24000' }));
-    } else process.stderr.write('ELEVENLABS_API_KEY needs ELEVENLABS_VOICE_ID, a voice your account can use, so ElevenLabs is skipped.\n');
   }
   return list;
 }

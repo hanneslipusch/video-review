@@ -27709,6 +27709,15 @@ function fetchOnce(url, init) {
 fetchOnce.preconnect = fetch.preconnect;
 function providers() {
   const env = process.env, list = [];
+  if (env.ELEVENLABS_API_KEY) {
+    if (env.ELEVENLABS_VOICE_ID) {
+      const voice = { provider: "elevenlabs", model: "eleven_v4", voice: encodeURIComponent(env.ELEVENLABS_VOICE_ID) };
+      const model = createElevenLabs({ apiKey: env.ELEVENLABS_API_KEY, fetch: fetchOnce }).speech(voice.model);
+      list.push(sdk(voice, model, { outputFormat: "wav_24000" }));
+    } else
+      process.stderr.write(`ELEVENLABS_API_KEY needs ELEVENLABS_VOICE_ID, a voice your account can use, so ElevenLabs is skipped.
+`);
+  }
   if (env.GEMINI_API_KEY) {
     const voice = { provider: "gemini", model: "gemini-3.8-flash-tts", voice: "Kore" };
     const model = createGoogle({ apiKey: env.GEMINI_API_KEY, fetch: fetchOnce }).speech(voice.model);
@@ -27720,15 +27729,6 @@ function providers() {
       list.push(azure(env.AZURE_API_KEY, resource));
     else
       process.stderr.write(`AZURE_API_KEY needs AZURE_RESOURCE_NAME, the name of its Azure AI Services resource, so Azure is skipped.
-`);
-  }
-  if (env.ELEVENLABS_API_KEY) {
-    if (env.ELEVENLABS_VOICE_ID) {
-      const voice = { provider: "elevenlabs", model: "eleven_v4", voice: encodeURIComponent(env.ELEVENLABS_VOICE_ID) };
-      const model = createElevenLabs({ apiKey: env.ELEVENLABS_API_KEY, fetch: fetchOnce }).speech(voice.model);
-      list.push(sdk(voice, model, { outputFormat: "wav_24000" }));
-    } else
-      process.stderr.write(`ELEVENLABS_API_KEY needs ELEVENLABS_VOICE_ID, a voice your account can use, so ElevenLabs is skipped.
 `);
   }
   return list;
@@ -27978,8 +27978,8 @@ An image step shows for as long as its line needs.
 --captions-only    Build without speech, when the user asks for a silent review.
 --help             Show the input contract and example before recording.
 
-The build speaks each line into video.mp4 with one provider, in this order of the ones set: GEMINI_API_KEY,
-AZURE_API_KEY with AZURE_RESOURCE_NAME, ELEVENLABS_API_KEY with ELEVENLABS_VOICE_ID; one that already spoke most
+The build speaks each line into video.mp4 with one provider, in this order of the ones set: ELEVENLABS_API_KEY
+with ELEVENLABS_VOICE_ID, GEMINI_API_KEY, AZURE_API_KEY with AZURE_RESOURCE_NAME; one that already spoke most
 lines goes first. If one fails, the next speaks every line. Without any, the review is captions-only.
 Speech is cached in $XDG_CACHE_HOME/video-review/speech (default ~/.cache), so a rebuild requests only changed lines.
 Outputs: index.html, video.mp4, preview.gif (captioned, at 2.5\xD7, for pages that cannot play video), poster.jpg,
